@@ -88,59 +88,8 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
 }
 
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
-  ClientInfo* client = NULL;
-  if (data[0] == 0) {   // blank password, just check if sender is in ACL
-    client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
-    if (client == NULL) {
-    #if MESH_DEBUG
-      MESH_DEBUG_PRINTLN("Login, sender not in ACL");
-    #endif
-    }
-  }
-  if (client == NULL) {
-    uint8_t perms;
-    if (strcmp((char *)data, _prefs.password) == 0) { // check for valid admin password
-      perms = PERM_ACL_ADMIN;
-    } else if (strcmp((char *)data, _prefs.guest_password) == 0) { // check guest password
-      perms = PERM_ACL_GUEST;
-    } else {
-#if MESH_DEBUG
-      MESH_DEBUG_PRINTLN("Invalid password: %s", data);
-#endif
-      return 0;
-    }
-
-    client = acl.putClient(sender, 0);  // add to contacts (if not already known)
-    if (sender_timestamp <= client->last_timestamp) {
-      MESH_DEBUG_PRINTLN("Possible login replay attack!");
-      return 0;  // FATAL: client table is full -OR- replay attack
-    }
-
-    MESH_DEBUG_PRINTLN("Login success!");
-    client->last_timestamp = sender_timestamp;
-    client->last_activity = getRTCClock()->getCurrentTime();
-    client->permissions &= ~0x03;
-    client->permissions |= perms;
-
-    if (perms != PERM_ACL_GUEST) {   // keep number of FS writes to a minimum
-      dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
-    }
-  }
-
-  if (is_flood) {
-    client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
-  }
-
-  uint32_t now = getRTCClock()->getCurrentTimeUnique();
-  memcpy(reply_data, &now, 4);   // response packets always prefixed with timestamp
-  reply_data[4] = RESP_SERVER_LOGIN_OK;
-  reply_data[5] = 0;  // Legacy: was recommended keep-alive interval (secs / 16)
-  reply_data[6] = client->isAdmin() ? 1 : 0;
-  reply_data[7] = client->permissions;
-  getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
-  reply_data[12] = FIRMWARE_VER_LEVEL;  // New field
-
-  return 13;  // reply length
+  // OTA Admin Disabled: Reject over-the-air logins
+  return 0;
 }
 
 uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
@@ -509,22 +458,21 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const mesh::Identity &sender,
     memcpy(&timestamp, data, 4);
 
     data[len] = 0;  // ensure null terminator
-    uint8_t reply_len;
+    uint8_t reply_len = 0;
 
     reply_path_len = 0xFF;
     if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
-      reply_len = handleLoginReq(sender, timestamp, &data[4], packet->isRouteFlood());
+      MESH_DEBUG_PRINTLN("OTA login attempt blocked");
+      return; // OTA Admin Disabled: Ignore login attempts
     } else if (data[4] == ANON_REQ_TYPE_REGIONS && packet->isRouteDirect()) {
       reply_len = handleAnonRegionsReq(sender, timestamp, &data[5]);
     } else if (data[4] == ANON_REQ_TYPE_OWNER && packet->isRouteDirect()) {
       reply_len = handleAnonOwnerReq(sender, timestamp, &data[5]);
     } else if (data[4] == ANON_REQ_TYPE_BASIC && packet->isRouteDirect()) {
       reply_len = handleAnonClockReq(sender, timestamp, &data[5]);
-    } else {
-      reply_len = 0;  // unknown/invalid request type
     }
 
-    if (reply_len == 0) return;  // invalid request
+    if (reply_len == 0) return;  // invalid or blocked request
 
     ClientInfo* client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
     bool have_out_path = client != NULL && client->out_path_len != OUT_PATH_UNKNOWN;
@@ -582,94 +530,10 @@ void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32
 
 void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx,
                             uint8_t *data, size_t len) {
-  int i = matching_peer_indexes[sender_idx];
-  if (i < 0 || i >= acl.getNumClients()) {
+  // OTA Admin Disabled: Completely ignore over-the-air request packets or CLI commands
+  if (type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_TXT_MSG) {
+    MESH_DEBUG_PRINTLN("OTA Admin disabled - ignoring packet from sender idx: %d", sender_idx);
     return;
-  }
-  ClientInfo* client = acl.getClientByIdx(i);
-
-  if (type == PAYLOAD_TYPE_REQ) {
-    uint32_t timestamp;
-    memcpy(&timestamp, data, 4);
-
-    if (timestamp > client->last_timestamp) {
-      int reply_len = handleRequest(client, timestamp, &data[4], len - 4);
-      if (reply_len == 0) return;
-
-      client->last_timestamp = timestamp;
-      client->last_activity = getRTCClock()->getCurrentTime();
-
-      if (packet->isRouteFlood()) {
-        mesh::Packet *path = createPathReturn(client->id, packet->path, packet->path_len,
-                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
-        if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
-      } else {
-        mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, reply_data, reply_len);
-        if (reply) {
-          if (client->out_path_len != OUT_PATH_UNKNOWN) {
-            sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
-          } else {
-            sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
-          }
-        }
-      }
-    }
-  } else if (type == PAYLOAD_TYPE_TXT_MSG && len > 5 && client->isAdmin()) {
-    uint32_t sender_timestamp;
-    memcpy(&sender_timestamp, data, 4);
-    uint8_t flags = (data[4] >> 2);
-
-    if (!(flags == TXT_TYPE_PLAIN || flags == TXT_TYPE_CLI_DATA)) {
-      MESH_DEBUG_PRINTLN("onPeerDataRecv: unsupported text type: flags=%02x", (uint32_t)flags);
-    } else if (sender_timestamp >= client->last_timestamp) {
-      bool is_retry = (sender_timestamp == client->last_timestamp);
-      client->last_timestamp = sender_timestamp;
-      client->last_activity = getRTCClock()->getCurrentTime();
-
-      data[len] = 0;
-
-      if (flags == TXT_TYPE_PLAIN) {
-        uint32_t ack_hash;
-        mesh::Utils::sha256((uint8_t *)&ack_hash, 4, data, 5 + strlen((char *)&data[5]), client->id.pub_key,
-                            PUB_KEY_SIZE);
-
-        mesh::Packet *ack = createAck(ack_hash);
-        if (ack) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(ack, TXT_ACK_DELAY, packet->getPathHashSize());
-          } else {
-            sendDirect(ack, client->out_path, client->out_path_len, TXT_ACK_DELAY);
-          }
-        }
-      }
-
-      uint8_t temp[166];
-      char *command = (char *)&data[5];
-      char *reply = (char *)&temp[5];
-      if (is_retry) {
-        *reply = 0;
-      } else {
-        handleCommand(sender_timestamp, command, reply);
-      }
-      int text_len = strlen(reply);
-      if (text_len > 0) {
-        uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
-        if (timestamp == sender_timestamp) {
-          timestamp++;
-        }
-        memcpy(temp, &timestamp, 4);
-        temp[4] = (TXT_TYPE_CLI_DATA << 2);
-
-        auto reply_pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, temp, 5 + text_len);
-        if (reply_pkt) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(reply_pkt, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
-          } else {
-            sendDirect(reply_pkt, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
-          }
-        }
-      }
-    }
   }
 }
 
