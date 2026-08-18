@@ -1,12 +1,9 @@
 #include "Utils.h"
-#include <AES.h>
 #include <SHA256.h>
 
 #ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
 #include "nrf_cc310/include/crys_hash.h"
-#include "nrf_cc310/include/crys_hmac.h"
-#include "nrf_cc310/include/ssi_aes.h"
 #endif
 
 #ifdef ARDUINO
