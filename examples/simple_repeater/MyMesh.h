@@ -28,7 +28,6 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>
 #include <helpers/CommonCLI.h>
-#include <helpers/IdentityStore.h>
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/StatsFormatHelper.h>
@@ -52,7 +51,7 @@ struct RepeaterStats {
   uint32_t total_up_time_secs;
   uint32_t n_sent_flood, n_sent_direct;
   uint32_t n_recv_flood, n_recv_direct;
-  uint16_t err_events;                // was 'n_full_events'
+  uint16_t err_events;
   int16_t  last_snr;   // x 4
   uint16_t n_direct_dups, n_flood_dups;
   uint32_t total_rx_air_time_secs;
@@ -67,7 +66,7 @@ struct NeighbourInfo {
   mesh::Identity id;
   uint32_t advert_timestamp;
   uint32_t heard_timestamp;
-  int8_t snr; // multiplied by 4, user should divide to get float value
+  int8_t snr; // multiplied by 4
 };
 
 #ifndef FIRMWARE_BUILD_DATE
@@ -75,7 +74,7 @@ struct NeighbourInfo {
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.17.1"
+  #define FIRMWARE_VERSION      "v1.17.1"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
@@ -94,11 +93,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   uint8_t reply_path[MAX_PATH_SIZE];
   uint8_t reply_path_len;
-  TransportKeyStore key_store;
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
-  TransportKey default_scope;
   RateLimiter discover_limiter, anon_limiter;
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
@@ -121,7 +118,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
-  uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
+  uint8_t handleLoginReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
@@ -169,12 +166,11 @@ protected:
 
   mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
 
-  void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
+  void onAnonDataRecv(mesh::Packet* packet, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;
-  void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
   void onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, uint32_t timestamp, const uint8_t* app_data, size_t app_data_len);
-  void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
-  bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
+  void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, uint8_t* data, size_t len) override;
+  bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onControlDataRecv(mesh::Packet* packet) override;
 
   void sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size);
@@ -195,8 +191,6 @@ public:
   void savePrefs() override {
     _cli.savePrefs(_fs);
   }
-
-  void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
 
   // CommonCLICallbacks
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;
@@ -222,9 +216,6 @@ public:
   bool saveRegions() override;
   void onDefaultRegionChanged(const RegionEntry* r) override;
 
-  mesh::LocalIdentity& getSelfId() override { return self_id; }
-
-  void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override;
 
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
@@ -250,7 +241,6 @@ public:
   }
 #endif
 
-  // To check if there is pending work
   bool hasPendingWork() const;
 
   bool setRxBoostedGain(bool enable) override;
@@ -258,5 +248,4 @@ public:
   #if defined(USE_LR2021)
   virtual bool configSideDetectors(const uint8_t sideDetSFs[], uint8_t num, float bw) override;
   #endif
-
 };
