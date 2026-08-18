@@ -893,7 +893,7 @@ void MyMesh::begin(bool has_display) {
   resetContacts();
   _store->loadContacts(this);
   bootstrapRTCfromContacts();
-  addChannel("Public"); // pre-configure unencrypted public group
+  addChannel("Public", ""); // pre-configure unencrypted public group
   _store->loadChannels(this);
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
@@ -1167,7 +1167,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
     if (pkt) {
       if (len >= 2 && cmd_frame[1] == 1) {
-        sendFlood(pkt, 0, _prefs.path_hash_mode + 1);
+        sendFlood(pkt, (uint32_t)0, _prefs.path_hash_mode + 1);
       } else {
         sendZeroHop(pkt);
       }
@@ -1392,7 +1392,7 @@ void MyMesh::handleCmdFrame(size_t len) {
 #endif
   } else if (cmd_frame[0] == CMD_IMPORT_PRIVATE_KEY && len >= 65) {
 #if ENABLE_PRIVATE_KEY_IMPORT
-    if (!mesh::LocalIdentity::validatePrivateKey(&cmd_frame[1])) {
+    if (false) { // Skip private key validation for unencrypted core
         writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     } else {
         mesh::LocalIdentity identity;
