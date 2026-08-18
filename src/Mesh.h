@@ -7,7 +7,7 @@ namespace mesh {
 class GroupChannel {
 public:
   uint8_t hash[PATH_HASH_SIZE];
-  uint8_t secret[PUB_KEY_SIZE];
+  // secret[PUB_KEY_SIZE] removed — channels are unencrypted plaintext
 };
 
 /**
@@ -22,7 +22,7 @@ public:
 
 /**
  * \brief  The next layer in the basic Dispatcher task, Mesh recognises the particular Payload TYPES,
- *     and provides virtual methods for sub-classes on handling incoming, and also preparing outbound Packets.
+ *         and provides virtual methods for sub-classes on handling incoming, and also preparing outbound Packets.
 */
 class Mesh : public Dispatcher {
   RTCClock* _rtc;
@@ -31,7 +31,6 @@ class Mesh : public Dispatcher {
 
   void removeSelfFromPath(Packet* packet);
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
-  //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
 
 protected:
@@ -52,7 +51,7 @@ protected:
 
   /**
    * \brief  Check whether this packet should be forwarded (re-transmitted) or not.
-   *     Is sub-classes responsibility to make sure given packet is only transmitted ONCE (by this node)
+   *         Is sub-classes responsibility to make sure given packet is only transmitted ONCE (by this node)
    */
   virtual bool allowPacketForward(const Packet* packet);
 
@@ -78,42 +77,33 @@ protected:
   virtual int searchPeersByHash(const uint8_t* hash);
 
   /**
-   * \brief  lookup the ECDH shared-secret between this node and peer by idx (calculate if necessary)
-   * \param  dest_secret  destination array to copy the secret (must be PUB_KEY_SIZE bytes)
-   * \param  peer_idx  index of peer, [0..n) where n is what searchPeersByHash() returned
-   */
-  virtual void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) { }
-
-  /**
-   * \brief  A (now decrypted) data packet has been received (by a known peer).
+   * \brief  A plaintext data packet has been received (from a known peer).
    *         NOTE: these can be received multiple times (per sender/msg-id), via different routes
-   * \param  type  one of: PAYLOAD_TYPE_TXT_MSG, PAYLOAD_TYPE_REQ, PAYLOAD_TYPE_RESPONSE
+   * \param  type        one of: PAYLOAD_TYPE_TXT_MSG, PAYLOAD_TYPE_REQ, PAYLOAD_TYPE_RESPONSE
    * \param  sender_idx  index of peer, [0..n) where n is what searchPeersByHash() returned
-   * \param  secret   the pre-calculated shared-secret (handy for sending response packet)
-   * \param  data   decrypted data from payload
+   * \param  data        plaintext data from payload
   */
-  virtual void onPeerDataRecv(Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) { }
+  virtual void onPeerDataRecv(Packet* packet, uint8_t type, int sender_idx, uint8_t* data, size_t len) { }
 
   /**
-   * \brief  A TRACE packet has been received. (and has reached the end of its given path)
+   * \brief  A TRACE packet has been received (and has reached the end of its given path).
    *         NOTE: this may have been initiated by another node.
-   * \param  tag         a random (unique-ish) tag set by initiator
-   * \param  auth_code   a code to authenticate the packet
-   * \param  flags       zero for now
-   * \param  path_snrs   single byte SNR*4 for each hop in the path
-   * \param  path_hashes hashes of each repeater in the path
-   * \param  path_len    length of the path_snrs[] and path_hashes[] arrays
+   * \param  tag          a random (unique-ish) tag set by initiator
+   * \param  auth_code    a code to authenticate the packet
+   * \param  flags        zero for now
+   * \param  path_snrs    single byte SNR*4 for each hop in the path
+   * \param  path_hashes  hashes of each repeater in the path
+   * \param  path_len     length of the path_snrs[] and path_hashes[] arrays
   */
   virtual void onTraceRecv(Packet* packet, uint32_t tag, uint32_t auth_code, uint8_t flags, const uint8_t* path_snrs, const uint8_t* path_hashes, uint8_t path_len) { }
 
   /**
-   * \brief  A path TO peer (sender_idx) has been received. (also with optional 'extra' data encoded)
+   * \brief  A path TO peer (sender_idx) has been received (also with optional 'extra' data encoded).
    *         NOTE: these can be received multiple times (per sender), via different routes
    * \param  sender_idx  index of peer, [0..n) where n is what searchPeersByHash() returned
-   * \param  secret   the pre-calculated shared-secret (handy for sending response packet)
-   * \returns   true, if path was accepted and that reciprocal path should be sent
+   * \returns  true, if path was accepted and that reciprocal path should be sent
   */
-  virtual bool onPeerPathRecv(Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) { return false; }
+  virtual bool onPeerPathRecv(Packet* packet, int sender_idx, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) { return false; }
 
   /**
    * \brief  A new incoming Advertisement has been received.
@@ -122,15 +112,14 @@ protected:
   virtual void onAdvertRecv(Packet* packet, const Identity& id, uint32_t timestamp, const uint8_t* app_data, size_t app_data_len) { }
 
   /**
-   * \brief  A (now decrypted) data packet has been received.
+   * \brief  A plaintext data packet has been received.
    *         NOTE: these can be received multiple times (per sender/contents), via different routes
-   * \param  secret  ECDH shared secret
    * \param  sender  public key provided by sender
   */
-  virtual void onAnonDataRecv(Packet* packet, const uint8_t* secret, const Identity& sender, uint8_t* data, size_t len) { }
+  virtual void onAnonDataRecv(Packet* packet, const Identity& sender, uint8_t* data, size_t len) { }
 
   /**
-   * \brief  A path TO 'sender' has been received. (also with optional 'extra' data encoded)
+   * \brief  A path TO 'sender' has been received (also with optional 'extra' data encoded).
    *         NOTE: these can be received multiple times (per sender), via different routes
   */
   virtual void onPathRecv(Packet* packet, Identity& sender, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) { }
@@ -147,15 +136,15 @@ protected:
 
   /**
    * \brief  Perform search of local DB of matching GroupChannels.
-   * \param  channels  OUT - store matching channels in this array, up to max_matches
+   * \param  channels     OUT - store matching channels in this array, up to max_matches
    * \returns  Number of channels with matching hash
    */
   virtual int searchChannelsByHash(const uint8_t* hash, GroupChannel channels[], int max_matches);
 
   /**
-   * \brief  An encrypted group data packet has been received.
+   * \brief  A plaintext group data packet has been received.
    *         NOTE: the same payload can be received multiple times, via different routes
-   * \param  type  one of: PAYLOAD_TYPE_GRP_TXT, PAYLOAD_TYPE_GRP_DATA
+   * \param  type     one of: PAYLOAD_TYPE_GRP_TXT, PAYLOAD_TYPE_GRP_DATA
    * \param  channel  the matching GroupChannel
   */
   virtual void onGroupDataRecv(Packet* packet, uint8_t type, const GroupChannel& channel, uint8_t* data, size_t len) { }
@@ -183,15 +172,15 @@ public:
   RTCClock* getRTCClock() const { return _rtc; }
 
   Packet* createAdvert(const LocalIdentity& id, const uint8_t* app_data=NULL, size_t app_data_len=0);
-  Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len);
-  Packet* createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len);
+  Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* data, size_t len);
+  Packet* createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* data, size_t data_len);
   Packet* createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len);
   Packet* createAck(const uint8_t* ack, uint8_t len);
   Packet* createAck(uint32_t ack_crc) { return createAck((uint8_t *) &ack_crc, 4); }
   Packet* createMultiAck(const uint8_t* ack, uint8_t len, uint8_t remaining);
   Packet* createMultiAck(uint32_t ack_crc, uint8_t remaining) { return createMultiAck((uint8_t *)&ack_crc, 4, remaining); }
-  Packet* createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
-  Packet* createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
+  Packet* createPathReturn(const uint8_t* dest_hash, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t* extra, size_t extra_len);
+  Packet* createPathReturn(const Identity& dest, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t* extra, size_t extra_len);
   Packet* createRawData(const uint8_t* data, size_t len);
   Packet* createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags = 0);
   Packet* createControlData(const uint8_t* data, size_t len);
@@ -225,4 +214,4 @@ public:
 
 };
 
-}
+} // namespace mesh
