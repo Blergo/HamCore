@@ -66,27 +66,6 @@ public:
   */
   void sign(uint8_t* sig, const uint8_t* message, int msg_len) const;
 
-  /**
-   * \brief  the ECDH key exhange, with Ed25519 public key transposed to Ex25519.
-   * \param  secret OUT - the 'shared secret' (must be PUB_KEY_SIZE bytes)
-   * \param  other IN - the second party in the exchange.
-  */
-  void calcSharedSecret(uint8_t* secret, const Identity& other) const { calcSharedSecret(secret, other.pub_key); }
-
-  /**
-   * \brief  the ECDH key exhange, with Ed25519 public key transposed to Ex25519.
-   * \param  secret OUT - the 'shared secret' (must be PUB_KEY_SIZE bytes)
-   * \param  other_pub_key IN - the public key of second party in the exchange (must be PUB_KEY_SIZE bytes)
-  */
-  void calcSharedSecret(uint8_t* secret, const uint8_t* other_pub_key) const;
-
-  /**
-   * \brief  Validates that a given private key can be used for ECDH / shared-secret operations.
-   * \param  prv IN - the private key to validate (must be PRV_KEY_SIZE bytes)
-   * \returns true, if the private key is valid for login.
-  */
-  static bool validatePrivateKey(const uint8_t prv[64]);
-
   bool readFrom(Stream& s);
   bool writeTo(Stream& s) const;
   void printTo(Stream& s) const;
@@ -94,5 +73,4 @@ public:
   void readFrom(const uint8_t* src, size_t len);
 };
 
-}
-
+} // namespace mesh
