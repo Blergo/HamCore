@@ -8,3 +8,5 @@ Changes from original:
 2 - Disable Remote Admin
 
 3 - Tidied up target devices, more can be added back in future
+
+4 - Changed default radio settings to fall in the 70cm band
