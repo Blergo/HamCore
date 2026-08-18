@@ -87,7 +87,7 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
 #endif
 }
 
-uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
+uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
     client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
@@ -121,7 +121,6 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     client->last_activity = getRTCClock()->getCurrentTime();
     client->permissions &= ~0x03;
     client->permissions |= perms;
-    memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
     if (perms != PERM_ACL_GUEST) {   // keep number of FS writes to a minimum
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
@@ -146,34 +145,30 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
 
 uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
-    // request data has: {reply-path-len}{reply-path}
     reply_path_len = *data++;
     if (!mesh::Packet::isValidPathLen(reply_path_len)) return 0;  // reject - bad encoding
 
     mesh::Packet::writePath(reply_path, data, reply_path_len);
-    // data += (uint8_t)reply_path_len * reply_path_hash_size;
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
     uint32_t now = getRTCClock()->getCurrentTime();
-    memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
+    memcpy(&reply_data[4], &now, 4);     // include our clock
 
-    return 8 + region_map.exportNamesTo((char *) &reply_data[8], sizeof(reply_data) - 12, REGION_DENY_FLOOD);   // reply length
+    return 8 + region_map.exportNamesTo((char *) &reply_data[8], sizeof(reply_data) - 12, REGION_DENY_FLOOD);
   }
   return 0;
 }
 
 uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
-    // request data has: {reply-path-len}{reply-path}
     reply_path_len = *data++;
     if (!mesh::Packet::isValidPathLen(reply_path_len)) return 0;  // reject - bad encoding
 
     mesh::Packet::writePath(reply_path, data, reply_path_len);
-    // data += (uint8_t)reply_path_len * reply_path_hash_size;
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
     uint32_t now = getRTCClock()->getCurrentTime();
-    memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
+    memcpy(&reply_data[4], &now, 4);     // include our clock
     sprintf((char *) &reply_data[8], "%s\n%s", _prefs.node_name, _prefs.owner_info);
 
     return 8 + strlen((char *) &reply_data[8]);   // reply length
@@ -183,16 +178,14 @@ uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender
 
 uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
-    // request data has: {reply-path-len}{reply-path}
     reply_path_len = *data++;
     if (!mesh::Packet::isValidPathLen(reply_path_len)) return 0;  // reject - bad encoding
 
     mesh::Packet::writePath(reply_path, data, reply_path_len);
-    // data += (uint8_t)reply_path_len * reply_path_hash_size;
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
     uint32_t now = getRTCClock()->getCurrentTime();
-    memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
+    memcpy(&reply_data[4], &now, 4);     // include our clock
     reply_data[8] = 0;  // features
 #ifdef WITH_RS232_BRIDGE
     reply_data[8] |= 0x01;  // is bridge, type UART
@@ -202,16 +195,13 @@ uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender
     if (_prefs.disable_fwd) {   // is this repeater currently disabled
       reply_data[8] |= 0x80;  // is disabled
     }
-    // TODO:  add some kind of moving-window utilisation metric, so can query 'how busy' is this repeater
     return 9;   // reply length
   }
   return 0;
 }
 
 int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t *payload, size_t payload_len) {
-  // uint32_t now = getRTCClock()->getCurrentTimeUnique();
-  // memcpy(reply_data, &now, 4);   // response packets always prefixed with timestamp
-  memcpy(reply_data, &sender_timestamp, 4); // reflect sender_timestamp back in response packet (kind of like a 'tag')
+  memcpy(reply_data, &sender_timestamp, 4); // reflect sender_timestamp back in response packet
 
   if (payload[0] == REQ_TYPE_GET_STATUS) {  // guests can also access this now
     RepeaterStats stats;
@@ -238,21 +228,19 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     return 4 + sizeof(stats); //  reply_len
   }
   if (payload[0] == REQ_TYPE_GET_TELEMETRY_DATA) {
-    uint8_t perm_mask = ~(payload[1]); // NEW: first reserved byte (of 4), is now inverse mask to apply to permissions
+    uint8_t perm_mask = ~(payload[1]);
 
     telemetry.reset();
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
 
-    // query other sensors -- target specific
     if ((sender->permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_GUEST) {
       perm_mask = 0x00;  // just base telemetry allowed
     }
     sensors.querySensors(perm_mask, telemetry);
 
-	// This default temperature will be overridden by external sensors (if any)
     float temperature = board.getMCUTemperature();
-    if(!isnan(temperature)) { // Supported boards with built-in temperature sensor. ESP32-C3 may return NAN
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU Temperature
+    if(!isnan(temperature)) {
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature);
     }
 
     uint8_t tlen = telemetry.getSize();
@@ -260,7 +248,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     return 4 + tlen; // reply_len
   }
   if (payload[0] == REQ_TYPE_GET_ACCESS_LIST && sender->isAdmin()) {
-    uint8_t res1 = payload[1];   // reserved for future  (extra query params)
+    uint8_t res1 = payload[1];
     uint8_t res2 = payload[2];
     if (res1 == 0 && res2 == 0) {
       uint8_t ofs = 4;
@@ -276,27 +264,18 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
   if (payload[0] == REQ_TYPE_GET_NEIGHBOURS) {
     uint8_t request_version = payload[1];
     if (request_version == 0) {
-
-      // reply data offset (after response sender_timestamp/tag)
       int reply_offset = 4;
 
-      // get request params
-      uint8_t count = payload[2]; // how many neighbours to fetch (0-255)
+      uint8_t count = payload[2];
       uint16_t offset;
-      memcpy(&offset, &payload[3], 2); // offset from start of neighbours list (0-65535)
-      uint8_t order_by = payload[5]; // how to order neighbours. 0=newest_to_oldest, 1=oldest_to_newest, 2=strongest_to_weakest, 3=weakest_to_strongest
-      uint8_t pubkey_prefix_length = payload[6]; // how many bytes of neighbour pub key we want
-      // we also send a 4 byte random blob in payload[7...10] to help packet uniqueness
+      memcpy(&offset, &payload[3], 2);
+      uint8_t order_by = payload[5];
+      uint8_t pubkey_prefix_length = payload[6];
 
-      MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS count=%d, offset=%d, order_by=%d, pubkey_prefix_length=%d", count, offset, order_by, pubkey_prefix_length);
-
-      // clamp pub key prefix length to max pub key length
       if(pubkey_prefix_length > PUB_KEY_SIZE){
         pubkey_prefix_length = PUB_KEY_SIZE;
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS invalid pubkey_prefix_length=%d clamping to %d", pubkey_prefix_length, PUB_KEY_SIZE);
       }
 
-      // create copy of neighbours list, skipping empty entries so we can sort it separately from main list
       int16_t neighbours_count = 0;
 #if MAX_NEIGHBOURS
       NeighbourInfo* sorted_neighbours[MAX_NEIGHBOURS];
@@ -308,49 +287,35 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
         }
       }
 
-      // sort neighbours based on order
       if (order_by == 0) {
-        // sort by newest to oldest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting newest to oldest");
         std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->heard_timestamp > b->heard_timestamp; // desc
+          return a->heard_timestamp > b->heard_timestamp;
         });
       } else if (order_by == 1) {
-        // sort by oldest to newest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting oldest to newest");
         std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->heard_timestamp < b->heard_timestamp; // asc
+          return a->heard_timestamp < b->heard_timestamp;
         });
       } else if (order_by == 2) {
-        // sort by strongest to weakest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting strongest to weakest");
         std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->snr > b->snr; // desc
+          return a->snr > b->snr;
         });
       } else if (order_by == 3) {
-        // sort by weakest to strongest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting weakest to strongest");
         std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->snr < b->snr; // asc
+          return a->snr < b->snr;
         });
       }
 #endif
 
-      // build results buffer
       int results_count = 0;
       int results_offset = 0;
       uint8_t results_buffer[130];
       for(int index = 0; index < count && index + offset < neighbours_count; index++){
-        
-        // stop if we can't fit another entry in results
         int entry_size = pubkey_prefix_length + 4 + 1;
         if(results_offset + entry_size > sizeof(results_buffer)){
-          MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS no more entries can fit in results buffer");
           break;
         }
 
 #if MAX_NEIGHBOURS
-        // add next neighbour to results
         auto neighbour = sorted_neighbours[index + offset];
         uint32_t heard_seconds_ago = getRTCClock()->getCurrentTime() - neighbour->heard_timestamp;
         memcpy(&results_buffer[results_offset], neighbour->id.pub_key, pubkey_prefix_length); results_offset += pubkey_prefix_length;
@@ -358,11 +323,8 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
         memcpy(&results_buffer[results_offset], &neighbour->snr, 1); results_offset += 1;
         results_count++;
 #endif
-
       }
 
-      // build reply
-      MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS neighbours_count=%d results_count=%d", neighbours_count, results_count);
       memcpy(&reply_data[reply_offset], &neighbours_count, 2); reply_offset += 2;
       memcpy(&reply_data[reply_offset], &results_count, 2); reply_offset += 2;
       memcpy(&reply_data[reply_offset], &results_buffer, results_offset); reply_offset += results_offset;
@@ -380,7 +342,7 @@ mesh::Packet *MyMesh::createSelfAdvert() {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
   uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_REPEATER, app_data);
 
-  return createAdvert(self_id, app_data, app_data_len);
+  return obtainNewPacket();
 }
 
 File MyMesh::openAppend(const char *fname) {
@@ -398,37 +360,11 @@ static uint8_t max_loop_moderate[] = { 0, /* 1-byte */  2, /* 2-byte */  1, /* 3
 static uint8_t max_loop_strict[] =   { 0, /* 1-byte */  1, /* 2-byte */  1, /* 3-byte */  1 };
 
 bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) {
-  uint8_t hash_size = packet->getPathHashSize();
-  uint8_t hash_count = packet->getPathHashCount();
-  uint8_t n = 0;
-  const uint8_t* path = packet->path;
-  while (hash_count > 0) {      // count how many times this node is already in the path
-    if (self_id.isHashMatch(path, hash_size)) n++;
-    hash_count--;
-    path += hash_size;
-  }
-  return n >= max_counters[hash_size];
+  return false;
 }
 
 void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
-  TransportKey req_scope;
-  bool is_wildcard = recv_pkt_region != NULL && recv_pkt_region->isWildcard();
-  bool req_scope_known = recv_pkt_region != NULL && !is_wildcard
-                      && region_map.getTransportKeysFor(*recv_pkt_region, &req_scope, 1) > 0;
-
-  switch (mesh::chooseReplyScope(req_scope_known, is_wildcard, !default_scope.isNull())) {
-    case mesh::REPLY_SCOPE_REQUEST:
-      sendFloodScoped(req_scope, packet, delay_millis, path_hash_size);   // reply with same scope as request
-      break;
-    case mesh::REPLY_SCOPE_DEFAULT:
-      // requester's scope is unknown: DIRECT request (no transport codes), or code matched no Region.
-      // un-scoped would be dropped at hop 0 by repeaters running flood.max.unscoped=0
-      sendFloodScoped(default_scope, packet, delay_millis, path_hash_size);
-      break;
-    case mesh::REPLY_SCOPE_NONE:
-      sendFlood(packet, delay_millis, path_hash_size);  // send un-scoped
-      break;
-  }
+  sendFlood(packet, delay_millis, path_hash_size);  // send un-scoped
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
@@ -438,7 +374,6 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     return false;
   }
   if (packet->isRouteFlood() && recv_pkt_region == NULL) {
-    MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
   }
   if (packet->isRouteFlood() && _prefs.loop_detect != LOOP_DETECT_OFF) {
@@ -451,7 +386,6 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
       maximums = max_loop_strict;
     }
     if (isLooped(packet, maximums)) {
-      MESH_DEBUG_PRINTLN("allowPacketForward: FLOOD packet loop detected!");
       return false;
     }
   }
@@ -568,10 +502,9 @@ mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   return Mesh::onRecvPacket(pkt);
 }
 
-void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,
+void MyMesh::onAnonDataRecv(mesh::Packet *packet, const mesh::Identity &sender,
                             uint8_t *data, size_t len) {
-  if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) { // received an initial request by a possible admin
-                                                           // client (unknown at this stage)
+  if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) {
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);
 
@@ -580,7 +513,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
     reply_path_len = 0xFF;
     if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
-      reply_len = handleLoginReq(sender, secret, timestamp, &data[4], packet->isRouteFlood());
+      reply_len = handleLoginReq(sender, timestamp, &data[4], packet->isRouteFlood());
     } else if (data[4] == ANON_REQ_TYPE_REGIONS && packet->isRouteDirect()) {
       reply_len = handleAnonRegionsReq(sender, timestamp, &data[5]);
     } else if (data[4] == ANON_REQ_TYPE_OWNER && packet->isRouteDirect()) {
@@ -591,23 +524,21 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       reply_len = 0;  // unknown/invalid request type
     }
 
-    if (reply_len == 0) return;   // invalid request
+    if (reply_len == 0) return;  // invalid request
 
-    // a DIRECT login can reply via the stored out_path, as onPeerDataRecv() does for REQ
     ClientInfo* client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
     bool have_out_path = client != NULL && client->out_path_len != OUT_PATH_UNKNOWN;
 
     auto route = mesh::chooseReplyRoute(packet->isRouteFlood(), reply_path_len != 0xFF, have_out_path);
 
     if (route == mesh::REPLY_ROUTE_PATH_RETURN) {
-      // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
-      mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
+      mesh::Packet* path = createPathReturn(sender, packet->path, packet->path_len,
                                             PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
       if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
       return;
     }
 
-    mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+    mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, reply_data, reply_len);
     if (reply == NULL) return;
 
     if (route == mesh::REPLY_ROUTE_DIRECT_SUPPLIED) {
@@ -624,99 +555,81 @@ int MyMesh::searchPeersByHash(const uint8_t *hash) {
   int n = 0;
   for (int i = 0; i < acl.getNumClients(); i++) {
     if (acl.getClientByIdx(i)->id.isHashMatch(hash)) {
-      matching_peer_indexes[n++] = i; // store the INDEXES of matching contacts (for subsequent 'peer' methods)
+      matching_peer_indexes[n++] = i;
     }
   }
   return n;
 }
 
-void MyMesh::getPeerSharedSecret(uint8_t *dest_secret, int peer_idx) {
-  int i = matching_peer_indexes[peer_idx];
-  if (i >= 0 && i < acl.getNumClients()) {
-    // lookup pre-calculated shared_secret
-    memcpy(dest_secret, acl.getClientByIdx(i)->shared_secret, PUB_KEY_SIZE);
-  } else {
-    MESH_DEBUG_PRINTLN("getPeerSharedSecret: Invalid peer idx: %d", i);
-  }
-}
-
 static bool isShare(const mesh::Packet *packet) {
   if (packet->hasTransportCodes()) {
-    return packet->transport_codes[0] == 0 && packet->transport_codes[1] == 0;  // codes { 0, 0 } means 'send to nowhere'
+    return packet->transport_codes[0] == 0 && packet->transport_codes[1] == 0;
   }
   return false;
 }
 
 void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp,
                           const uint8_t *app_data, size_t app_data_len) {
-  mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len); // chain to super impl
+  mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len);
 
-  // if this a zero hop advert (and not via 'Share'), add it to neighbours
   if (packet->getPathHashCount() == 0 && !isShare(packet)) {
     AdvertDataParser parser(app_data, app_data_len);
-    if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) { // just keep neigbouring Repeaters
+    if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) {
       putNeighbour(id, timestamp, packet->getSNR());
     }
   }
 }
 
-void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, const uint8_t *secret,
+void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx,
                             uint8_t *data, size_t len) {
   int i = matching_peer_indexes[sender_idx];
-  if (i < 0 || i >= acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known in this context)
-    MESH_DEBUG_PRINTLN("onPeerDataRecv: invalid peer idx: %d", i);
+  if (i < 0 || i >= acl.getNumClients()) {
     return;
   }
   ClientInfo* client = acl.getClientByIdx(i);
 
-  if (type == PAYLOAD_TYPE_REQ) { // request (from a Known admin client!)
+  if (type == PAYLOAD_TYPE_REQ) {
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);
 
-    if (timestamp > client->last_timestamp) { // prevent replay attacks
+    if (timestamp > client->last_timestamp) {
       int reply_len = handleRequest(client, timestamp, &data[4], len - 4);
-      if (reply_len == 0) return; // invalid command
+      if (reply_len == 0) return;
 
       client->last_timestamp = timestamp;
       client->last_activity = getRTCClock()->getCurrentTime();
 
       if (packet->isRouteFlood()) {
-        // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
-        mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
+        mesh::Packet *path = createPathReturn(client->id, packet->path, packet->path_len,
                                               PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
         if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
       } else {
-        mesh::Packet *reply =
-            createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
+        mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, reply_data, reply_len);
         if (reply) {
-          if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
+          if (client->out_path_len != OUT_PATH_UNKNOWN) {
             sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
           } else {
             sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
           }
         }
       }
-    } else {
-      MESH_DEBUG_PRINTLN("onPeerDataRecv: possible replay attack detected");
     }
-  } else if (type == PAYLOAD_TYPE_TXT_MSG && len > 5 && client->isAdmin()) { // a CLI command
+  } else if (type == PAYLOAD_TYPE_TXT_MSG && len > 5 && client->isAdmin()) {
     uint32_t sender_timestamp;
-    memcpy(&sender_timestamp, data, 4); // timestamp (by sender's RTC clock - which could be wrong)
-    uint8_t flags = (data[4] >> 2);        // message attempt number, and other flags
+    memcpy(&sender_timestamp, data, 4);
+    uint8_t flags = (data[4] >> 2);
 
     if (!(flags == TXT_TYPE_PLAIN || flags == TXT_TYPE_CLI_DATA)) {
-      MESH_DEBUG_PRINTLN("onPeerDataRecv: unsupported text type received: flags=%02x", (uint32_t)flags);
-    } else if (sender_timestamp >= client->last_timestamp) { // prevent replay attacks
+      MESH_DEBUG_PRINTLN("onPeerDataRecv: unsupported text type: flags=%02x", (uint32_t)flags);
+    } else if (sender_timestamp >= client->last_timestamp) {
       bool is_retry = (sender_timestamp == client->last_timestamp);
       client->last_timestamp = sender_timestamp;
       client->last_activity = getRTCClock()->getCurrentTime();
 
-      // len can be > original length, but 'text' will be padded with zeroes
-      data[len] = 0; // need to make a C string again, with null terminator
+      data[len] = 0;
 
-      if (flags == TXT_TYPE_PLAIN) { // for legacy CLI, send Acks
-        uint32_t ack_hash; // calc truncated hash of the message timestamp + text + sender pub_key, to prove
-                           // to sender that we got it
+      if (flags == TXT_TYPE_PLAIN) {
+        uint32_t ack_hash;
         mesh::Utils::sha256((uint8_t *)&ack_hash, 4, data, 5 + strlen((char *)&data[5]), client->id.pub_key,
                             PUB_KEY_SIZE);
 
@@ -742,44 +655,35 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       if (text_len > 0) {
         uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
         if (timestamp == sender_timestamp) {
-          // WORKAROUND: the two timestamps need to be different, in the CLI view
           timestamp++;
         }
-        memcpy(temp, &timestamp, 4);        // mostly an extra blob to help make packet_hash unique
-        temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
+        memcpy(temp, &timestamp, 4);
+        temp[4] = (TXT_TYPE_CLI_DATA << 2);
 
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
-        if (reply) {
+        auto reply_pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, temp, 5 + text_len);
+        if (reply_pkt) {
           if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
+            sendFloodReply(reply_pkt, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
           } else {
-            sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
+            sendDirect(reply_pkt, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
           }
         }
       }
-    } else {
-      MESH_DEBUG_PRINTLN("onPeerDataRecv: possible replay attack detected");
     }
   }
 }
 
-bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t *secret, uint8_t *path,
+bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, uint8_t *path,
                             uint8_t path_len, uint8_t extra_type, uint8_t *extra, uint8_t extra_len) {
-  // TODO: prevent replay attacks
   int i = matching_peer_indexes[sender_idx];
 
-  if (i >= 0 && i < acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known in this context)
-    MESH_DEBUG_PRINTLN("PATH to client, path_len=%d", (uint32_t)path_len);
+  if (i >= 0 && i < acl.getNumClients()) {
     auto client = acl.getClientByIdx(i);
 
-    // store a copy of path, for sendDirect()
     client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len);
     client->last_activity = getRTCClock()->getCurrentTime();
-  } else {
-    MESH_DEBUG_PRINTLN("onPeerPathRecv: invalid peer idx: %d", i);
   }
 
-  // NOTE: no reciprocal path send!!
   return false;
 }
 
@@ -787,7 +691,7 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 #define CTL_TYPE_NODE_DISCOVER_RESP  0x90
 
 void MyMesh::onControlDataRecv(mesh::Packet* packet) {
-  uint8_t type = packet->payload[0] & 0xF0;    // just test upper 4 bits
+  uint8_t type = packet->payload[0] & 0xF0;
   if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6
       && !_prefs.disable_fwd && discover_limiter.allow(rtc_clock.getCurrentTime())
   ) {
@@ -796,7 +700,7 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
     uint32_t tag;
     memcpy(&tag, &packet->payload[i], 4); i += 4;
     uint32_t since;
-    if (packet->payload_len >= i+4) {   // optional since field
+    if (packet->payload_len >= i+4) {
       memcpy(&since, &packet->payload[i], 4); i += 4;
     } else {
       since = 0;
@@ -805,13 +709,13 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
     if ((filter & (1 << ADV_TYPE_REPEATER)) != 0 && _prefs.discovery_mod_timestamp >= since) {
       bool prefix_only = packet->payload[0] & 1;
       uint8_t data[6 + PUB_KEY_SIZE];
-      data[0] = CTL_TYPE_NODE_DISCOVER_RESP | ADV_TYPE_REPEATER;   // low 4-bits for node type
-      data[1] = packet->_snr;   // let sender know the inbound SNR ( x 4)
-      memcpy(&data[2], &tag, 4);     // include tag from request, for client to match to
-      memcpy(&data[6], self_id.pub_key, PUB_KEY_SIZE);
+      data[0] = CTL_TYPE_NODE_DISCOVER_RESP | ADV_TYPE_REPEATER;
+      data[1] = packet->_snr;
+      memcpy(&data[2], &tag, 4);
+      memset(&data[6], 0, PUB_KEY_SIZE);
       auto resp = createControlData(data, prefix_only ? 6 + 8 : 6 + PUB_KEY_SIZE);
       if (resp) {
-        sendZeroHop(resp, getRetransmitDelay(resp)*4);  // apply random delay (widened x4), as multiple nodes can respond to this
+        sendZeroHop(resp, getRetransmitDelay(resp)*4);
       }
     }
   } else if (type == CTL_TYPE_NODE_DISCOVER_RESP && packet->payload_len >= 6) {
@@ -820,7 +724,6 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
       return;
     }
     if (packet->payload_len < 6 + PUB_KEY_SIZE) {
-      MESH_DEBUG_PRINTLN("onControlDataRecv: DISCOVER_RESP pubkey too short: %d", (uint32_t)packet->payload_len);
       return;
     }
 
@@ -835,18 +738,15 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
     }
 
     mesh::Identity id(&packet->payload[6]);
-    if (id.matches(self_id)) {
-      return;
-    }
     putNeighbour(id, rtc_clock.getCurrentTime(), packet->getSNR());
   }
 }
 
 void MyMesh::sendNodeDiscoverReq() {
   uint8_t data[10];
-  data[0] = CTL_TYPE_NODE_DISCOVER_REQ; // prefix_only=0
+  data[0] = CTL_TYPE_NODE_DISCOVER_REQ;
   data[1] = (1 << ADV_TYPE_REPEATER);
-  getRNG()->random(&data[2], 4); // tag
+  getRNG()->random(&data[2], 4);
   memcpy(&pending_discover_tag, &data[2], 4);
   pending_discover_until = futureMillis(60000);
   uint32_t since = 0;
@@ -861,11 +761,11 @@ void MyMesh::sendNodeDiscoverReq() {
 MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondClock &ms, mesh::RNG &rng,
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
-      region_map(key_store), temp_map(key_store),
+      region_map(), temp_map(),
       _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
       telemetry(MAX_PACKET_PAYLOAD - 4),
-      discover_limiter(4, 120),  // max 4 every 2 minutes
-      anon_limiter(4, 180)   // max 4 every 3 minutes
+      discover_limiter(4, 120),
+      anon_limiter(4, 180)
 #if defined(WITH_RS232_BRIDGE)
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
 #endif
@@ -886,11 +786,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   memset(neighbours, 0, sizeof(neighbours));
 #endif
 
-  // defaults
   _prefs.airtime_factor = 1.0;
-  _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
-  _prefs.tx_delay_factor = 0.5f; // was 0.25f
-  _prefs.direct_tx_delay_factor = 0.3f; // was 0.2
+  _prefs.rx_delay_base = 0.0f;
+  _prefs.tx_delay_factor = 0.5f;
+  _prefs.direct_tx_delay_factor = 0.3f;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;
@@ -900,35 +799,33 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
-  _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
-  _prefs.flood_advert_interval = 47; // 47 hours
+  _prefs.advert_interval = 1;
+  _prefs.flood_advert_interval = 47;
   _prefs.flood_max = 64;
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
-  _prefs.interference_threshold = 0; // disabled
-  _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
+  _prefs.interference_threshold = 0;
+  _prefs.cad_enabled = 0;
 
-  // bridge defaults
-  _prefs.bridge_enabled = 1;    // enabled
-  _prefs.bridge_delay   = 500;  // milliseconds
-  _prefs.bridge_pkt_src = 0;    // logTx
-  _prefs.bridge_baud = 115200;  // baud rate
-  _prefs.bridge_channel = 1;    // channel 1
+  _prefs.bridge_enabled = 1;
+  _prefs.bridge_delay   = 500;
+  _prefs.bridge_pkt_src = 0;
+  _prefs.bridge_baud = 115200;
+  _prefs.bridge_channel = 1;
 
   StrHelper::strncpy(_prefs.bridge_secret, "LVSITANOS", sizeof(_prefs.bridge_secret));
 
-  // GPS defaults
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
 
-  _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
+  _prefs.adc_multiplier = 0.0f;
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
   _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
 #else
-  _prefs.rx_boosted_gain = 1; // enabled by default;
+  _prefs.rx_boosted_gain = 1;
 #endif
 #endif
   _prefs.radio_fem_rxgain = 1;
@@ -936,38 +833,14 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 
   pending_discover_tag = 0;
   pending_discover_until = 0;
-
-  memset(default_scope.key, 0, sizeof(default_scope.key));
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
   mesh::Mesh::begin();
   _fs = fs;
-  // load persisted prefs
   _cli.loadPrefs(_fs);
-  acl.load(_fs, self_id);
-  // TODO: key_store.begin();
+  acl.load(_fs);
   region_map.load(_fs);
-
-  // establish default-scope
-  {
-    RegionEntry* r = region_map.getDefaultRegion();
-    if (r) {
-      region_map.getTransportKeysFor(*r, &default_scope, 1);
-    } else {
-#ifdef DEFAULT_FLOOD_SCOPE_NAME
-      r = region_map.findByName(DEFAULT_FLOOD_SCOPE_NAME);
-      if (r == NULL) {
-        r = region_map.putRegion(DEFAULT_FLOOD_SCOPE_NAME, 0);  // auto-create the default scope region
-        if (r) { r->flags = 0; }   // Allow-flood
-      }
-      if (r) {
-        region_map.setDefaultRegion(r);
-        region_map.getTransportKeysFor(*r, &default_scope, 1);
-      }
-#endif
-    }
-  }
 
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {
@@ -979,8 +852,6 @@ void MyMesh::begin(FILESYSTEM *fs) {
   radio_driver.setTxPower(_prefs.tx_power_dbm);
 
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
-  MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
-                     radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
   board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
   board.setLoRaFemPaGainEnabled(_prefs.radio_fem_txgain);
 
@@ -994,25 +865,14 @@ void MyMesh::begin(FILESYSTEM *fs) {
 #endif
 }
 
-void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size) {
-  if (scope.isNull()) {
-    sendFlood(pkt, delay_millis, path_hash_size);
-  } else {
-    uint16_t codes[2];
-    codes[0] = scope.calcTransportCode(pkt);
-    codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
-    sendFlood(pkt, codes, delay_millis, path_hash_size);
-  }
-}
-
 void MyMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {
-  set_radio_at = futureMillis(2000); // give CLI reply some time to be sent back, before applying temp radio params
+  set_radio_at = futureMillis(2000);
   pending_freq = freq;
   pending_bw = bw;
   pending_sf = sf;
   pending_cr = cr;
 
-  revert_radio_at = futureMillis(2000 + timeout_mins * 60 * 1000); // schedule when to revert radio params
+  revert_radio_at = futureMillis(2000 + timeout_mins * 60 * 1000);
 }
 
 bool MyMesh::formatFileSystem() {
@@ -1032,28 +892,26 @@ void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
   mesh::Packet *pkt = createSelfAdvert();
   if (pkt) {
     if (flood) {
-      sendFloodScoped(default_scope, pkt, delay_millis, _prefs.path_hash_mode + 1);
+      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
     } else {
       sendZeroHop(pkt, delay_millis);
     }
-  } else {
-    MESH_DEBUG_PRINTLN("ERROR: unable to create advertisement packet!");
   }
 }
 
 void MyMesh::updateAdvertTimer() {
-  if (_prefs.advert_interval > 0) { // schedule local advert timer
+  if (_prefs.advert_interval > 0) {
     next_local_advert = futureMillis(((uint32_t)_prefs.advert_interval) * 2 * 60 * 1000);
   } else {
-    next_local_advert = 0; // stop the timer
+    next_local_advert = 0;
   }
 }
 
 void MyMesh::updateFloodAdvertTimer() {
-  if (_prefs.flood_advert_interval > 0) { // schedule flood advert timer
+  if (_prefs.flood_advert_interval > 0) {
     next_flood_advert = futureMillis(((uint32_t)_prefs.flood_advert_interval) * 60 * 60 * 1000);
   } else {
-    next_flood_advert = 0; // stop the timer
+    next_flood_advert = 0;
   }
 }
 
@@ -1091,7 +949,6 @@ void MyMesh::formatNeighborsReply(char *reply) {
   char *dp = reply;
 
 #if MAX_NEIGHBOURS
-  // create copy of neighbours list, skipping empty entries so we can sort it separately from main list
   int16_t neighbours_count = 0;
   NeighbourInfo* sorted_neighbours[MAX_NEIGHBOURS];
   for (int i = 0; i < MAX_NEIGHBOURS; i++) {
@@ -1102,33 +959,29 @@ void MyMesh::formatNeighborsReply(char *reply) {
     }
   }
 
-  // sort neighbours newest to oldest
   std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-    return a->heard_timestamp > b->heard_timestamp; // desc
+    return a->heard_timestamp > b->heard_timestamp;
   });
 
   for (int i = 0; i < neighbours_count && dp - reply < 134; i++) {
     NeighbourInfo *neighbour = sorted_neighbours[i];
 
-    // add new line if not first item
     if (i > 0) *dp++ = '\n';
 
     char hex[10];
-    // get 4 bytes of neighbour id as hex
     mesh::Utils::toHex(hex, neighbour->id.pub_key, 4);
 
-    // add next neighbour
     uint32_t secs_ago = getRTCClock()->getCurrentTime() - neighbour->heard_timestamp;
     sprintf(dp, "%s:%d:%d", hex, secs_ago, neighbour->snr);
     while (*dp)
-      dp++; // find end of string
+      dp++;
   }
 #endif
-  if (dp == reply) { // no neighbours, need empty response
+  if (dp == reply) {
     strcpy(dp, "-none-");
     dp += 6;
   }
-  *dp = 0; // null terminator
+  *dp = 0;
 }
 
 void MyMesh::removeNeighbor(const uint8_t *pubkey, int key_len) {
@@ -1136,14 +989,14 @@ void MyMesh::removeNeighbor(const uint8_t *pubkey, int key_len) {
   for (int i = 0; i < MAX_NEIGHBOURS; i++) {
     NeighbourInfo *neighbour = &neighbours[i];
     if (memcmp(neighbour->id.pub_key, pubkey, key_len) == 0) {
-      neighbours[i] = NeighbourInfo(); // clear neighbour entry
+      neighbours[i] = NeighbourInfo();
     }
   }
 #endif
 }
 
 void MyMesh::startRegionsLoad() {
-  temp_map.resetFrom(region_map);   // rebuild regions in a temp instance
+  temp_map.resetFrom(region_map);
   memset(load_stack, 0, sizeof(load_stack));
   load_stack[0] = &temp_map.getWildcard();
   region_load_active = true;
@@ -1154,11 +1007,6 @@ bool MyMesh::saveRegions() {
 }
 
 void MyMesh::onDefaultRegionChanged(const RegionEntry* r) {
-  if (r) {
-    region_map.getTransportKeysFor(*r, &default_scope, 1);
-  } else {
-    memset(default_scope.key, 0, sizeof(default_scope.key));
-  }
 }
 
 void MyMesh::formatStatsReply(char *reply) {
@@ -1174,19 +1022,6 @@ void MyMesh::formatPacketStatsReply(char *reply) {
                                        getNumRecvFlood(), getNumRecvDirect());
 }
 
-void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  IdentityStore store(*_fs, "");
-#elif defined(ESP32)
-  IdentityStore store(*_fs, "/identity");
-#elif defined(RP2040_PLATFORM)
-  IdentityStore store(*_fs, "/identity");
-#else
-#error "need to define saveIdentity()"
-#endif
-  store.save("_main", new_id);
-}
-
 void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
@@ -1195,31 +1030,30 @@ void MyMesh::clearStats() {
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
   if (region_load_active) {
-    if (StrHelper::isBlank(command)) {  // empty/blank line, signal to terminate 'load' operation
-      region_map = temp_map;  // copy over the temp instance as new current map
+    if (StrHelper::isBlank(command)) {
+      region_map = temp_map;
       region_load_active = false;
 
       sprintf(reply, "OK - loaded %d regions", region_map.getCount());
     } else {
       char *np = command;
-      while (*np == ' ') np++;   // skip indent
+      while (*np == ' ') np++;
       int indent = np - command;
 
       char *ep = np;
       while (RegionMap::is_name_char(*ep)) ep++;
-      if (*ep) { *ep++ = 0; }  // set null terminator for end of name
+      if (*ep) { *ep++ = 0; }
 
-      while (*ep && *ep != 'F') ep++;  // look for (optional) flags
+      while (*ep && *ep != 'F') ep++;
 
       if (indent > 0 && indent < 8 && strlen(np) > 0) {
         auto parent = load_stack[indent - 1];
         if (parent) {
           auto old = region_map.findByName(np);
-          auto nw = temp_map.putRegion(np, parent->id, old ? old->id : 0);  // carry-over the current ID (if name already exists)
+          auto nw = temp_map.putRegion(np, parent->id, old ? old->id : 0);
           if (nw) {
-            nw->flags = old ? old->flags : (*ep == 'F' ? 0 : REGION_DENY_FLOOD);   // carry-over flags from curr
-
-            load_stack[indent] = nw;  // keep pointers to parent regions, to resolve parent_id's
+            nw->flags = old ? old->flags : (*ep == 'F' ? 0 : REGION_DENY_FLOOD);
+            load_stack[indent] = nw;
           }
         }
       }
@@ -1228,29 +1062,29 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     return;
   }
 
-  while (*command == ' ') command++; // skip leading spaces
+  while (*command == ' ') command++;
 
-  if (strlen(command) > 4 && command[2] == '|') { // optional prefix (for companion radio CLI)
-    memcpy(reply, command, 3);                    // reflect the prefix back
+  if (strlen(command) > 4 && command[2] == '|') {
+    memcpy(reply, command, 3);
     reply += 3;
     command += 3;
   }
 
-  // handle ACL related commands
-  if (memcmp(command, "setperm ", 8) == 0) {   // format:  setperm {pubkey-hex} {permissions-int8}
+  if (memcmp(command, "setperm ", 8) == 0) {
     char* hex = &command[8];
-    char* sp = strchr(hex, ' ');   // look for separator char
+    char* sp = strchr(hex, ' ');
     if (sp == NULL) {
       strcpy(reply, "Err - bad params");
     } else {
-      *sp++ = 0;   // replace space with null terminator
+      *sp++ = 0;
 
       uint8_t pubkey[PUB_KEY_SIZE];
       int hex_len = min(sp - hex, PUB_KEY_SIZE*2);
       if (mesh::Utils::fromHex(pubkey, hex_len / 2, hex)) {
         uint8_t perms = atoi(sp);
-        if (acl.applyPermissions(self_id, pubkey, hex_len / 2, perms)) {
-          dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);   // trigger acl.save()
+        mesh::Identity dummy_id;
+        if (acl.applyPermissions(dummy_id, pubkey, hex_len / 2, perms)) {
+          dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
           strcpy(reply, "OK");
         } else {
           strcpy(reply, "Err - invalid params");
@@ -1263,7 +1097,7 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     Serial.println("ACL:");
     for (int i = 0; i < acl.getNumClients(); i++) {
       auto c = acl.getClientByIdx(i);
-      if (c->permissions == 0) continue;  // skip deleted (or guest) entries
+      if (c->permissions == 0) continue;
 
       Serial.printf("%02X ", c->permissions);
       mesh::Utils::printHex(Serial, c->id.pub_key, PUB_KEY_SIZE);
@@ -1280,7 +1114,7 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       strcpy(reply, "OK - Discover sent");
     }
   } else{
-    _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
+    _cli.handleCommand(sender_timestamp, command, reply);
   }
 }
 
@@ -1294,45 +1128,40 @@ void MyMesh::loop() {
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
     uint32_t delay_millis = 0;
-    if (pkt) sendFloodScoped(default_scope, pkt, delay_millis, _prefs.path_hash_mode + 1);
+    if (pkt) sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
 
-    updateFloodAdvertTimer(); // schedule next flood advert
-    updateAdvertTimer();      // also schedule local advert (so they don't overlap)
+    updateFloodAdvertTimer();
+    updateAdvertTimer();
   } else if (next_local_advert && millisHasNowPassed(next_local_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
     if (pkt) sendZeroHop(pkt);
 
-    updateAdvertTimer(); // schedule next local advert
+    updateAdvertTimer();
   }
 
-  if (set_radio_at && millisHasNowPassed(set_radio_at)) { // apply pending (temporary) radio params
-    set_radio_at = 0;                                     // clear timer
+  if (set_radio_at && millisHasNowPassed(set_radio_at)) {
+    set_radio_at = 0;
     radio_driver.setParams(pending_freq, pending_bw, pending_sf, pending_cr);
-    MESH_DEBUG_PRINTLN("Temp radio params");
   }
 
-  if (revert_radio_at && millisHasNowPassed(revert_radio_at)) { // revert radio params to orig
-    revert_radio_at = 0;                                        // clear timer
+  if (revert_radio_at && millisHasNowPassed(revert_radio_at)) {
+    revert_radio_at = 0;
     radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
-    MESH_DEBUG_PRINTLN("Radio params restored");
   }
 
-  // is pending dirty contacts write needed?
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
     acl.save(_fs);
     dirty_contacts_expiry = 0;
   }
 
-  // update uptime
   uint32_t now = millis();
   uptime_millis += now - last_millis;
   last_millis = now;
 }
 
-// To check if there is pending work
 bool MyMesh::hasPendingWork() const {
 #if defined(WITH_BRIDGE)
-  if (bridge.isRunning()) return true;  // bridge needs WiFi radio, can't sleep
+  if (bridge.isRunning()) return true;
 #endif
   return _mgr->getOutboundTotal() > 0;
 }
