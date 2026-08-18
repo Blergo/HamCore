@@ -10,15 +10,12 @@
 #define SEED_SIZE           32
 #define SIGNATURE_SIZE      64
 #define MAX_ADVERT_DATA_SIZE  32
-#define CIPHER_KEY_SIZE     16
-#define CIPHER_BLOCK_SIZE   16
 
 // V1
-#define CIPHER_MAC_SIZE      2
 #define PATH_HASH_SIZE       1
 
 #define MAX_PACKET_PAYLOAD  184
-#define MAX_GROUP_DATA_LENGTH  (MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE - 3)
+#define MAX_GROUP_DATA_LENGTH  (MAX_PACKET_PAYLOAD - 1)
 #define MAX_PATH_SIZE        64
 #define MAX_TRANS_UNIT      255
 
@@ -114,4 +111,4 @@ public:
   }
 };
 
-}
+} // namespace mesh
