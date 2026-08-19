@@ -1,16 +1,31 @@
-Modified MeshCore FW for Ham Radio use.  
+# HamCore
+
+**HamCore** is a modified, unencrypted fork of the MeshCore firmware specifically tailored for Amateur (Ham) Radio operating conditions and regulatory compliance.
+
+> **Regulatory Notice:** This firmware removes all payload encryption and session key derivation to comply with amateur radio licensing rules prohibiting coded or obscured transmissions (such as UK Ofcom and FCC Part 97 rules).
+
+---
+
+## Key Features & Changes
+
+* **Full Encryption Removal:** All message encryption, transport keys, and secret handling have been stripped out to ensure 100% unencrypted, compliant operation on ham bands.
+* **Remote Admin Disabled:** Remote administrative commands are disabled to prevent unauthorized over-the-air modification of node settings.
+* **Ham Band Defaults:** Default radio profiles are tuned out-of-the-box for the 70cm Amateur Radio Band.
+* **Smart GPS Hibernation:** Integrated low-power software sleep and wake management for u-blox M10 GNSS modules (such as the Beitian BE-220). Toggling GPS "Off" in the UI commands the module into a ~15 uA software backup mode rather than leaving it powered in the background.
+* **Updated Display UI:** Modified startup screen replacing the stock MeshCore branding with HamCore for instant visual identification of unencrypted firmware.
+* **Streamlined Build Targets:** Cleaned up target board variants for easier maintenance and compilation (additional targets can be re-added as needed).
+
+---
+
+## Changelog
+
+### v0.01a
+
+1. **License Compliance:** Removed all payload and transport encryption layer logic.
+2. **Security:** Disabled Remote Admin functionality.
+3. **Target Cleanup:** Simplified board targets for improved build maintainability.
+4. **RF Defaults:** Shifted default radio configurations into the 70cm amateur band allocation.
+5. **Branding:** Replaced stock logo and `meshcore.io` references on the OLED display with "HamCore" branding.
+6. **Hardware Power Savings:** Added u-blox M10 UBX software hibernation support when GPS is toggled off in settings.
 
 
-Changelog:
-
-v0.01a
-
-1 - Remove all encryption to comply with license conditions
-
-2 - Disable Remote Admin
-
-3 - Tidied up target devices, more can be added back in future
-
-4 - Changed default radio settings to fall in the 70cm band
-
-5 - Implement Software hibernation for ublox M10 GPS modules (when gps is turned off in meshcore ui it puts gos module into low power state) 
