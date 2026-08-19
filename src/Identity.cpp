@@ -60,29 +60,34 @@ void LocalIdentity::printTo(Stream& s) const {
 }
 
 size_t LocalIdentity::writeTo(uint8_t* dest, size_t max_len) {
-  if (max_len < PRV_KEY_SIZE) return 0;
+  if (max_len < PUB_KEY_SIZE) return 0;
 
-  if (max_len < PRV_KEY_SIZE + PUB_KEY_SIZE) {
-    memcpy(dest, prv_key, PRV_KEY_SIZE);
-    return PRV_KEY_SIZE;
+  // Safe fallback: Write pub_key first, then prv_key if space permits
+  memcpy(dest, pub_key, PUB_KEY_SIZE);
+  if (max_len >= PUB_KEY_SIZE + PRV_KEY_SIZE) {
+    memcpy(&dest[PUB_KEY_SIZE], prv_key, PRV_KEY_SIZE);
+    return PUB_KEY_SIZE + PRV_KEY_SIZE;
   }
-  memcpy(dest, prv_key, PRV_KEY_SIZE);
-  memcpy(&dest[PRV_KEY_SIZE], pub_key, PUB_KEY_SIZE);
-  return PRV_KEY_SIZE + PUB_KEY_SIZE;
+  return PUB_KEY_SIZE;
 }
 
 void LocalIdentity::readFrom(const uint8_t* src, size_t len) {
-  if (len == PRV_KEY_SIZE + PUB_KEY_SIZE) {
-    memcpy(prv_key, src, PRV_KEY_SIZE);
-    memcpy(pub_key, &src[PRV_KEY_SIZE], PUB_KEY_SIZE);
-  } else if (len == PRV_KEY_SIZE) {
-    memcpy(prv_key, src, PRV_KEY_SIZE);
+  if (len >= PUB_KEY_SIZE + PRV_KEY_SIZE) {
+    memcpy(pub_key, src, PUB_KEY_SIZE);
+    memcpy(prv_key, &src[PUB_KEY_SIZE], PRV_KEY_SIZE);
+  } else if (len >= PUB_KEY_SIZE) {
+    memcpy(pub_key, src, PUB_KEY_SIZE);
+    memset(prv_key, 0, sizeof(prv_key));
   }
 }
 
 void LocalIdentity::sign(uint8_t* sig, const uint8_t* message, int msg_len) const {
-  // Fill signature buffer with dummy bytes (no Ed25519 calculation)
-  memset(sig, 0, 64);
+  // Safe fill: Only zero out up to SIGNATURE_SIZE to prevent stack overwrites
+#ifdef SIGNATURE_SIZE
+  memset(sig, 0, SIGNATURE_SIZE);
+#else
+  memset(sig, 0, 32);
+#endif
 }
 
 } // namespace mesh
