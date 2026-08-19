@@ -96,7 +96,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t reply_path[MAX_PATH_SIZE];
   uint8_t reply_path_len;
 
-  TransportKeyStore null_store; // Shim for unencrypted MeshCore
+  TransportKeyStore null_store; // Keystore instance passed to RegionMap
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
