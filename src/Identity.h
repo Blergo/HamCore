@@ -49,7 +49,7 @@ public:
 };
 
 /**
- * \brief  An Identity generated on THIS device, ie. with public/private Ed25519 key pair being on this device.
+ * \brief  An Identity generated on THIS device.
 */
 class LocalIdentity : public Identity {
   uint8_t prv_key[PRV_KEY_SIZE];
@@ -59,7 +59,14 @@ public:
   LocalIdentity(RNG* rng);   // create new random
 
   /**
-   * \brief  Ed25519 digital signature.
+   * \brief  Stubbed validation check (replaces Ed25519 key verification).
+  */
+  static bool validatePrivateKey(const uint8_t* prv_key) {
+    return prv_key != nullptr;
+  }
+
+  /**
+   * \brief  Digital signature stub.
    * \param sig OUT - must be SIGNATURE_SIZE buffer.
    * \param message IN - the raw message bytes to sign.
    * \param msg_len IN - the length in bytes of message.
