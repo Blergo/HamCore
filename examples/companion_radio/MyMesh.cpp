@@ -110,7 +110,7 @@
 #define PUSH_CODE_PATH_UPDATED          0x81
 #define PUSH_CODE_SEND_CONFIRMED        0x82
 #define PUSH_CODE_MSG_WAITING           0x83
-#define PUSH_CODE_RAW_DATA             0x84
+#define PUSH_CODE_RAW_DATA              0x84
 #define PUSH_CODE_LOGIN_SUCCESS         0x85
 #define PUSH_CODE_LOGIN_FAIL            0x86
 #define PUSH_CODE_STATUS_RESPONSE       0x87
@@ -126,10 +126,10 @@
 
 #define ERR_CODE_UNSUPPORTED_CMD        1
 #define ERR_CODE_NOT_FOUND             2
-#define ERR_CODE_TABLE_FULL            3
-#define ERR_CODE_BAD_STATE             4
-#define ERR_CODE_FILE_IO_ERROR         5
-#define ERR_CODE_ILLEGAL_ARG           6
+#define ERR_CODE_TABLE_FULL             3
+#define ERR_CODE_BAD_STATE              4
+#define ERR_CODE_FILE_IO_ERROR          5
+#define ERR_CODE_ILLEGAL_ARG            6
 
 #define MAX_SIGN_DATA_LEN               (8 * 1024) // 8K
 
@@ -138,6 +138,40 @@
 #define AUTO_ADD_REPEATER         (1 << 2)
 #define AUTO_ADD_ROOM_SERVER      (1 << 3)
 #define AUTO_ADD_SENSOR           (1 << 4)
+
+/* ------------------ BE-220 GPS HIBERNATION HELPERS ------------------ */
+#if ENV_INCLUDE_GPS == 1
+
+// UBX-RXM-PMREQ: Backup/Sleep Mode command
+static const uint8_t UBX_GPS_SLEEP[] = {
+  0xB5, 0x62,             // UBX Sync Header
+  0x02, 0x41,             // Class (RXM), ID (PMREQ)
+  0x08, 0x00,             // Length (8 bytes)
+  0x00, 0x00, 0x00, 0x00, // Duration (0 = infinite / until activity)
+  0x02, 0x00, 0x00, 0x00, // Flags (Backup Mode)
+  0x4D, 0x3B              // Checksum
+};
+
+static void sendGpsSleep() {
+#if defined(GPS_SERIAL_PORT) && defined(GPS_TX_PIN)
+  GPS_SERIAL_PORT.write(UBX_GPS_SLEEP, sizeof(UBX_GPS_SLEEP));
+  GPS_SERIAL_PORT.flush();
+  pinMode(GPS_TX_PIN, INPUT); // High-Z prevents leakage back-powering
+  MESH_DEBUG_PRINTLN("GPS: BE-220 sent to UBX software sleep");
+#endif
+}
+
+static void sendGpsWake() {
+#if defined(GPS_SERIAL_PORT) && defined(GPS_RX_PIN) && defined(GPS_TX_PIN)
+  GPS_SERIAL_PORT.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  GPS_SERIAL_PORT.write(0xFF); // Dummy byte wakes M10 core
+  GPS_SERIAL_PORT.flush();
+  MESH_DEBUG_PRINTLN("GPS: BE-220 woken up");
+#endif
+}
+
+#endif
+/* -------------------------------------------------------------------- */
 
 void MyMesh::writeOKFrame() {
   uint8_t buf[1];
@@ -763,7 +797,7 @@ void MyMesh::onRawDataRecv(mesh::Packet *packet) {
 }
 
 void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code, uint8_t flags,
-                         const uint8_t *path_snrs, const uint8_t *path_hashes, uint8_t path_len) {
+                          const uint8_t *path_snrs, const uint8_t *path_hashes, uint8_t path_len) {
   uint8_t path_sz = flags & 0x03;
   if (12 + path_len + (path_len >> path_sz) + 1 > sizeof(out_frame)) {
     MESH_DEBUG_PRINTLN("onTraceRecv(), path_len is too long: %d", (uint32_t)path_len);
@@ -796,8 +830,8 @@ uint32_t MyMesh::calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis) const {
 uint32_t MyMesh::calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const {
   uint8_t path_hash_count = path_len & 63;
   return SEND_TIMEOUT_BASE_MILLIS +
-         ((pkt_airtime_millis * DIRECT_SEND_PERHOP_FACTOR + DIRECT_SEND_PERHOP_EXTRA_MILLIS) *
-          (path_hash_count + 1));
+          ((pkt_airtime_millis * DIRECT_SEND_PERHOP_FACTOR + DIRECT_SEND_PERHOP_EXTRA_MILLIS) *
+           (path_hash_count + 1));
 }
 
 void MyMesh::onSendTimeout() {}
@@ -870,6 +904,15 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);
+
+  /* BE-220 GPS Power State Initialization */
+#if ENV_INCLUDE_GPS == 1
+  if (_prefs.gps_enabled) {
+    sendGpsWake();
+  } else {
+    sendGpsSleep();
+  }
+#endif
 
 #ifdef BLE_PIN_CODE
   if (_prefs.ble_pin == 0) {
@@ -1717,6 +1760,13 @@ void MyMesh::handleCmdFrame(size_t len) {
         if (strcmp(sp, "gps") == 0) {
           _prefs.gps_enabled = (np[0] == '1') ? 1 : 0;
           savePrefs();
+          
+          /* Trigger BE-220 sleep/wake state on preference update */
+          if (_prefs.gps_enabled) {
+            sendGpsWake();
+          } else {
+            sendGpsSleep();
+          }
         } else if (strcmp(sp, "gps_interval") == 0) {
           uint32_t interval_seconds = atoi(np);
           _prefs.gps_interval = constrain(interval_seconds, 0, 86400);
