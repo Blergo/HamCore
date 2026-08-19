@@ -5,9 +5,6 @@
 #include <RTClib.h>
 #include <target.h>
 
-// Dummy stub to satisfy RegionMap's constructor signature
-class TransportKeyStore {};
-
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #include <InternalFileSystem.h>
 #elif defined(RP2040_PLATFORM)
@@ -36,6 +33,7 @@ class TransportKeyStore {};
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/TransportKeyStore.h>
 #include <helpers/RegionMap.h>
 #include <helpers/RoutingPolicy.h>
 #include "RateLimiter.h"
