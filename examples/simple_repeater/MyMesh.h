@@ -5,9 +5,8 @@
 #include <RTClib.h>
 #include <target.h>
 
-namespace mesh {
-  class NullKeyStore {};
-}
+// Dummy stub to satisfy RegionMap's constructor signature
+class TransportKeyStore {};
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #include <InternalFileSystem.h>
@@ -99,7 +98,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t reply_path[MAX_PATH_SIZE];
   uint8_t reply_path_len;
 
-  mesh::NullKeyStore null_store; // Shim for unencrypted MeshCore
+  TransportKeyStore null_store; // Shim for unencrypted MeshCore
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
