@@ -28,6 +28,7 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>
 #include <helpers/CommonCLI.h>
+#include <helpers/IdentityStore.h>
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/StatsFormatHelper.h>
@@ -93,6 +94,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   uint8_t reply_path[MAX_PATH_SIZE];
   uint8_t reply_path_len;
+  mesh::NullTransportKeyStore null_store; // TransportKeyStore fallback for RegionMap
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
@@ -192,7 +194,19 @@ public:
     _cli.savePrefs(_fs);
   }
 
-  // CommonCLICallbacks
+  // CommonCLICallbacks pure virtual overrides
+  mesh::LocalIdentity& getSelfId() override {
+    return self_id;
+  }
+
+  void saveIdentity(const mesh::LocalIdentity& new_id) override {
+    self_id = new_id;
+    if (_fs) {
+      IdentityStore store(_fs);
+      store.save("_identity", self_id);
+    }
+  }
+
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;
   bool formatFileSystem() override;
   void sendSelfAdvertisement(int delay_millis, bool flood) override;
