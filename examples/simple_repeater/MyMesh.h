@@ -5,6 +5,10 @@
 #include <RTClib.h>
 #include <target.h>
 
+namespace mesh {
+  class NullKeyStore {};
+}
+
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #include <InternalFileSystem.h>
 #elif defined(RP2040_PLATFORM)
