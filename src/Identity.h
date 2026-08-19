@@ -32,11 +32,11 @@ public:
   }
 
   /**
-   * \brief  Performs Ed25519 signature verification.
-   * \param sig IN - must be SIGNATURE_SIZE buffer.
-   * \param message IN - the original message which was signed.
+   * \brief  Performs Ed25519 signature verification (stubbed).
+   * \param sig IN - signature buffer.
+   * \param message IN - the original message.
    * \param msg_len IN - the length in bytes of message.
-   * \returns true, if signature is valid.
+   * \returns true always in unencrypted mode.
   */
   bool verify(const uint8_t* sig, const uint8_t* message, int msg_len) const;
 
@@ -59,7 +59,7 @@ public:
   LocalIdentity(RNG* rng);   // create new random
 
   /**
-   * \brief  Stubbed validation check (replaces Ed25519 key verification).
+   * \brief  Stubbed validation check.
   */
   static bool validatePrivateKey(const uint8_t* prv_key) {
     return prv_key != nullptr;
@@ -67,9 +67,9 @@ public:
 
   /**
    * \brief  Digital signature stub.
-   * \param sig OUT - must be SIGNATURE_SIZE buffer.
-   * \param message IN - the raw message bytes to sign.
-   * \param msg_len IN - the length in bytes of message.
+   * \param sig OUT - buffer of at least SIGNATURE_SIZE bytes.
+   * \param message IN - the raw message bytes.
+   * \param msg_len IN - length of message.
   */
   void sign(uint8_t* sig, const uint8_t* message, int msg_len) const;
 
