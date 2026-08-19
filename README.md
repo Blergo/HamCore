@@ -1,7 +1,9 @@
 Modified MeshCore FW for Ham Radio use.  
 
 
-Changes from original: 
+Changelog:
+
+v0.01a
 
 1 - Remove all encryption to comply with license conditions
 
