@@ -52,27 +52,22 @@ public:
   }
 
   int render(DisplayDriver& display) override {
-    // meshcore logo
+    // HamCore Title Header
     display.setColor(UIColor::corp_blue);
-    int logoWidth = 128;
-    display.drawXbm((display.width() - logoWidth) / 2, 3, meshcore_logo, logoWidth, 13);
+    display.setTextSize(2);
+    display.drawTextCentered(display.width() / 2, 4, "HamCore");
 
-    // meshcore website
-    const char* website = "https://meshcore.io";
+    // Version info
     display.setColor(UIColor::primary_txt);
     display.setTextSize(1);
-    uint16_t websiteWidth = display.getTextWidth(website);
-    display.setCursor((display.width() - websiteWidth) / 2, 22);
-    display.print(website);
+    char ver_buf[24];
+    snprintf(ver_buf, sizeof(ver_buf), "Ver: %s", _version_info);
+    display.drawTextCentered(display.width() / 2, 28, ver_buf);
 
-    // version info
-    display.setColor(UIColor::primary_txt);
-    display.setTextSize(1);
-    display.drawTextCentered(display.width()/2, 35, _version_info);
-
+    // Build Date
     display.setColor(UIColor::secondary_txt);
     display.setTextSize(1);
-    display.drawTextCentered(display.width()/2, 48, FIRMWARE_BUILD_DATE);
+    display.drawTextCentered(display.width() / 2, 44, FIRMWARE_BUILD_DATE);
 
     return 1000;
   }
