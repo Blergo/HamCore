@@ -34,7 +34,16 @@ void ClientACL::load(FILESYSTEM* fs, const mesh::LocalIdentity& self_id) {
         success = success && (file.read((uint8_t *) &c.extra.room.sync_since, 4) == 4);
         success = success && (file.read(unused, 2) == 2);
         success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
-        success = success && (file.read(c.out_path, 64) == 64);
+        
+        // Bounds check path read against physical buffer size
+        size_t path_bytes_to_read = sizeof(c.out_path) < 64 ? sizeof(c.out_path) : 64;
+        success = success && (file.read(c.out_path, path_bytes_to_read) == (int)path_bytes_to_read);
+        
+        // Skip remaining padding bytes if sizeof(c.out_path) < 64
+        if (64 > path_bytes_to_read) {
+          for (size_t p = 0; p < (64 - path_bytes_to_read); p++) file.read();
+        }
+
         success = success && (file.read(c.shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE);
 
         if (!success) break; // EOF
@@ -70,7 +79,14 @@ void ClientACL::save(FILESYSTEM* fs, bool (*filter)(ClientInfo*)) {
       success = success && (file.write((uint8_t *) &c->extra.room.sync_since, 4) == 4);
       success = success && (file.write(unused, 2) == 2);
       success = success && (file.write((uint8_t *)&c->out_path_len, 1) == 1);
-      success = success && (file.write(c->out_path, 64) == 64);
+      
+      // Write exact padded out_path frame
+      uint8_t path_pad[64];
+      memset(path_pad, 0, sizeof(path_pad));
+      size_t copy_len = sizeof(c->out_path) < 64 ? sizeof(c->out_path) : 64;
+      memcpy(path_pad, c->out_path, copy_len);
+      success = success && (file.write(path_pad, 64) == 64);
+      
       success = success && (file.write(c->shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE);
 
       if (!success) break; // write failed
@@ -90,6 +106,9 @@ bool ClientACL::clear() {
 }
 
 ClientInfo* ClientACL::getClient(const uint8_t* pubkey, int key_len) {
+  if (!pubkey || key_len <= 0) return NULL;
+  if (key_len > PUB_KEY_SIZE) key_len = PUB_KEY_SIZE;
+
   for (int i = 0; i < num_clients; i++) {
     if (memcmp(pubkey, clients[i].id.pub_key, key_len) == 0) return &clients[i]; // already known
   }
@@ -126,12 +145,13 @@ bool ClientACL::applyPermissions(const mesh::LocalIdentity& self_id, const uint8
     c = getClient(pubkey, key_len);
     if (c == NULL) return false; // partial pubkey not found
 
-    num_clients--; // delete from contacts[]
     int i = c - clients;
+    num_clients--; // Correct order: decrement AFTER calculating indices
     while (i < num_clients) {
       clients[i] = clients[i + 1];
       i++;
     }
+    memset(&clients[num_clients], 0, sizeof(ClientInfo)); // Clear trailing stale element
   } else {
     if (key_len < PUB_KEY_SIZE) return false; // need complete pubkey when adding/modifying
 
