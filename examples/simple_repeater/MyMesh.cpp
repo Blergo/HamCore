@@ -625,7 +625,7 @@ void MyMesh::sendNodeDiscoverReq() {
 MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondClock &ms, mesh::RNG &rng,
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
-      region_map(), temp_map(),
+      region_map(null_store), temp_map(null_store),
       _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
       telemetry(MAX_PACKET_PAYLOAD - 4),
       discover_limiter(4, 120),
@@ -703,7 +703,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   mesh::Mesh::begin();
   _fs = fs;
   _cli.loadPrefs(_fs);
-  acl.load(_fs);
+  acl.load(_fs, self_id);
   region_map.load(_fs);
 
 #if defined(WITH_BRIDGE)
@@ -946,8 +946,7 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       int hex_len = min(sp - hex, PUB_KEY_SIZE*2);
       if (mesh::Utils::fromHex(pubkey, hex_len / 2, hex)) {
         uint8_t perms = atoi(sp);
-        mesh::Identity dummy_id;
-        if (acl.applyPermissions(dummy_id, pubkey, hex_len / 2, perms)) {
+        if (acl.applyPermissions(self_id, pubkey, hex_len / 2, perms)) {
           dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
           strcpy(reply, "OK");
         } else {
