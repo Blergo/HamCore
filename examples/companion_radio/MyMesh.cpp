@@ -525,7 +525,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
 }
 
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
-  return false;
+  return BaseChatMesh::filterRecvFloodPacket(packet);
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
