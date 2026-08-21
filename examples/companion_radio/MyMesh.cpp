@@ -446,6 +446,22 @@ void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
   dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
 }
 
+// Handler for overheard repeats passed from Mesh::onRecvPacket
+void MyMesh::onOverheardRepeat(mesh::Packet *packet) {
+  if (_serial && _serial->isConnected()) {
+    int i = 0;
+    out_frame[i++] = PUSH_CODE_PATH_UPDATED;
+    out_frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
+    out_frame[i++] = (int8_t)(_radio->getLastRSSI());
+    out_frame[i++] = packet->path_len;
+    if (packet->path_len > 0) {
+      memcpy(&out_frame[i], packet->path, packet->path_len);
+      i += packet->path_len;
+    }
+    _serial->writeFrame(out_frame, i);
+  }
+}
+
 ContactInfo* MyMesh::processAck(const uint8_t *data) {
   for (int i = 0; i < EXPECTED_ACK_TABLE_SIZE; i++) {
     if (memcmp(data, &expected_ack_table[i].ack, 4) == 0) {
