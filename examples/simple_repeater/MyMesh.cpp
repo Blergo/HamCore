@@ -291,7 +291,7 @@ mesh::Packet *MyMesh::createSelfAdvert() {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
   uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_REPEATER, app_data);
 
-  return obtainNewPacket();
+  return createAdvert(self_id, app_data, app_data_len);
 }
 
 File MyMesh::openAppend(const char *fname) {
