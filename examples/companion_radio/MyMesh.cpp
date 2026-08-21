@@ -446,9 +446,9 @@ void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
   dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
 }
 
-// Handler for overheard repeats passed from Mesh::onRecvPacket
 void MyMesh::onOverheardRepeat(mesh::Packet *packet) {
   if (_serial && _serial->isConnected()) {
+    // 1. Push path update (0x81)
     int i = 0;
     out_frame[i++] = PUSH_CODE_PATH_UPDATED;
     out_frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
@@ -459,6 +459,28 @@ void MyMesh::onOverheardRepeat(mesh::Packet *packet) {
       i += packet->path_len;
     }
     _serial->writeFrame(out_frame, i);
+
+    // 2. Push send confirmation with hop count (0x82) for UI repeat count
+    uint32_t ack_hash = 0;
+    memcpy(&ack_hash, packet->payload, 4);
+
+    for (int k = 0; k < EXPECTED_ACK_TABLE_SIZE; k++) {
+      if (expected_ack_table[k].ack != 0 && memcmp(&ack_hash, &expected_ack_table[k].ack, 4) == 0) {
+        int j = 0;
+        out_frame[j++] = PUSH_CODE_SEND_CONFIRMED; // 0x82
+        memcpy(&out_frame[j], &ack_hash, 4); j += 4;
+        
+        uint32_t trip_time = _ms->getMillis() - expected_ack_table[k].msg_sent;
+        memcpy(&out_frame[j], &trip_time, 4); j += 4;
+        
+        out_frame[j++] = packet->path_len; // Hop count returned to UI app
+        
+        _serial->writeFrame(out_frame, j);
+        
+        expected_ack_table[k].ack = 0; // Clear entry once confirmed
+        break;
+      }
+    }
   }
 }
 
@@ -1125,7 +1147,17 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       ChannelDetails channel;
       bool success = getChannel(channel_idx, channel);
+      
+      // Calculate expected ACK hash for the flood packet
+      uint32_t expected_ack = mesh::Utils::hashDjb2((const uint8_t*)text, len - i);
+
       if (success && sendGroupMessage(msg_timestamp, channel.channel, _prefs.node_name, text, len - i)) {
+        // Track outbound channel flood in ACK table for repeat matching
+        expected_ack_table[next_ack_idx].msg_sent = _ms->getMillis();
+        expected_ack_table[next_ack_idx].ack = expected_ack;
+        expected_ack_table[next_ack_idx].contact = NULL; // Channel msgs have no single contact
+        next_ack_idx = (next_ack_idx + 1) % EXPECTED_ACK_TABLE_SIZE;
+
         writeOKFrame();
       } else {
         writeErrFrame(ERR_CODE_NOT_FOUND);
