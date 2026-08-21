@@ -32,3 +32,6 @@
 1. **Bug Fix - Repeater self_id all 0's:** Fixed identity generation and advert content.
 2. **Target Cleanup:** Removed Heltec WSL3 and tidied up the v3 variant.
 3. **Repeater Branding:** Replaced stock logo and `meshcore.io` references on the OLED display with "HamCore" branding.
+
+### v0.03a
+1. **Bug Fix - Repeater showing all 0's during node discovery:** Node Discovery response sending all 0's for name and id, this has been updated to send correct data.
