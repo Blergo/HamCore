@@ -41,7 +41,7 @@
   #define TXT_ACK_DELAY 200
 #endif
 
-#define FIRMWARE_VER_LEVEL       2
+#define FIRMWARE_VER_LEVEL        2
 
 #define REQ_TYPE_GET_STATUS         0x01 // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE         0x02
@@ -576,7 +576,7 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
       data[0] = CTL_TYPE_NODE_DISCOVER_RESP | ADV_TYPE_REPEATER;
       data[1] = packet->_snr;
       memcpy(&data[2], &tag, 4);
-      memset(&data[6], 0, PUB_KEY_SIZE);
+      memcpy(&data[6], self_id.pub_key, PUB_KEY_SIZE);
       auto resp = createControlData(data, prefix_only ? 6 + 8 : 6 + PUB_KEY_SIZE);
       if (resp) {
         sendZeroHop(resp, getRetransmitDelay(resp)*4);
