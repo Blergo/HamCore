@@ -72,11 +72,11 @@ struct NeighbourInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "19 Aug 2026"
+  #define FIRMWARE_BUILD_DATE   "21 Aug 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.0.0"
+  #define FIRMWARE_VERSION   "v0.02a"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
