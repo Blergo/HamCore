@@ -1072,7 +1072,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     int i = 1;
     uint8_t txt_type = cmd_frame[i++];
     uint8_t attempt = cmd_frame[i++];
-    uint32_32_t msg_timestamp;
+    uint32_t msg_timestamp;
     memcpy(&msg_timestamp, &cmd_frame[i], 4);
     i += 4;
     uint8_t *pub_key_prefix = &cmd_frame[i];
