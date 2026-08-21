@@ -29,4 +29,5 @@
 6. **Hardware Power Savings:** Added u-blox M10 UBX software hibernation support when GPS is toggled off in settings.
 
 ### v0.02a
-1. **Bug Fix - Repeater self_id all 0's:** fixed identity generation.
+1. **Bug Fix - Repeater self_id all 0's:** Fixed identity generation.
+2. **Target Cleanup:** Removed Heltec WSL3 and tidied up the v3 variant.
