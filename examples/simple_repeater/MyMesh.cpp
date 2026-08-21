@@ -317,6 +317,11 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
+  // Debug check: inspect signing identity during packet relay evaluation
+  Serial.printf("DEBUG: Forward check - self_id prefix: %02X %02X %02X %02X\n",
+                self_id.pub_key[0], self_id.pub_key[1], 
+                self_id.pub_key[2], self_id.pub_key[3]);
+
   if (_prefs.disable_fwd) return false;
   if (packet->isRouteFlood()
       && mesh::isFloodHopLimitExceeded(packet, _prefs.flood_max, _prefs.flood_max_unscoped, _prefs.flood_max_advert)) {
