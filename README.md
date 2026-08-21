@@ -25,9 +25,10 @@
 2. **Security:** Disabled Remote Admin functionality.
 3. **Target Cleanup:** Simplified board targets for improved build maintainability.
 4. **RF Defaults:** Shifted default radio configurations into the 70cm amateur band allocation.
-5. **Branding:** Replaced stock logo and `meshcore.io` references on the OLED display with "HamCore" branding.
+5. **Companion Branding:** Replaced stock logo and `meshcore.io` references on the OLED display with "HamCore" branding.
 6. **Hardware Power Savings:** Added u-blox M10 UBX software hibernation support when GPS is toggled off in settings.
 
 ### v0.02a
 1. **Bug Fix - Repeater self_id all 0's:** Fixed identity generation and advert content.
 2. **Target Cleanup:** Removed Heltec WSL3 and tidied up the v3 variant.
+3. **Repeater Branding:** Replaced stock logo and `meshcore.io` references on the OLED display with "HamCore" branding.
