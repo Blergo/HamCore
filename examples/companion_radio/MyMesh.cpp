@@ -153,19 +153,27 @@ static const uint8_t UBX_GPS_SLEEP[] = {
 };
 
 static void sendGpsSleep() {
-#if defined(GPS_SERIAL_PORT) && defined(GPS_TX_PIN)
+#if defined(GPS_SERIAL_PORT) && defined(GPS_TX_PIN) && defined(GPS_RX_PIN)
   GPS_SERIAL_PORT.write(UBX_GPS_SLEEP, sizeof(UBX_GPS_SLEEP));
   GPS_SERIAL_PORT.flush();
-  pinMode(GPS_TX_PIN, INPUT); // High-Z prevents leakage back-powering
-  MESH_DEBUG_PRINTLN("GPS: BE-220 sent to UBX software sleep");
+  
+  // Tristate both UART pins to High-Z to prevent parasitic leakage / back-powering
+  pinMode(GPS_TX_PIN, INPUT);
+  pinMode(GPS_RX_PIN, INPUT);
+  
+  MESH_DEBUG_PRINTLN("GPS: BE-220 sent to UBX software sleep & pins floated");
 #endif
 }
 
 static void sendGpsWake() {
 #if defined(GPS_SERIAL_PORT) && defined(GPS_RX_PIN) && defined(GPS_TX_PIN)
+  // Re-initialize the hardware UART pins before waking the core
   GPS_SERIAL_PORT.begin(9600, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  delay(50); // Give the module a moment to re-engage its UART buffer
+  
   GPS_SERIAL_PORT.write(0xFF); // Dummy byte wakes M10 core
   GPS_SERIAL_PORT.flush();
+  
   MESH_DEBUG_PRINTLN("GPS: BE-220 woken up");
 #endif
 }
