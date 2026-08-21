@@ -35,3 +35,4 @@
 
 ### v0.03a
 1. **Bug Fix - Repeater showing all 0's during node discovery:** Node Discovery response sending all 0's for name and id, this has been updated to send correct data.
+2. **Bug Fix - GPS Sleep not working as intended:** Switch RX and TX to inputs after sending the command to go into low power mode in attempt to stop parasitic back-powering.
