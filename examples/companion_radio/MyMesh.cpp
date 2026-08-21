@@ -1147,14 +1147,11 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       ChannelDetails channel;
       bool success = getChannel(channel_idx, channel);
-      
-      // Calculate expected ACK hash for the flood packet
-      uint32_t expected_ack = mesh::Utils::hashDjb2((const uint8_t*)text, len - i);
 
       if (success && sendGroupMessage(msg_timestamp, channel.channel, _prefs.node_name, text, len - i)) {
-        // Track outbound channel flood in ACK table for repeat matching
+        // First 4 bytes of unencrypted flood payload match msg_timestamp
         expected_ack_table[next_ack_idx].msg_sent = _ms->getMillis();
-        expected_ack_table[next_ack_idx].ack = expected_ack;
+        expected_ack_table[next_ack_idx].ack = msg_timestamp;
         expected_ack_table[next_ack_idx].contact = NULL; // Channel msgs have no single contact
         next_ack_idx = (next_ack_idx + 1) % EXPECTED_ACK_TABLE_SIZE;
 
@@ -1816,7 +1813,7 @@ void MyMesh::handleCmdFrame(size_t len) {
         if (strcmp(sp, "gps") == 0) {
           _prefs.gps_enabled = (np[0] == '1') ? 1 : 0;
           savePrefs();
-          
+
           /* Trigger BE-220 sleep/wake state on preference update */
           if (_prefs.gps_enabled) {
             sendGpsWake();
