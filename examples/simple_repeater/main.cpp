@@ -81,6 +81,35 @@ void setup() {
   #error "need to define filesystem"
 #endif
 
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  InternalFS.begin();
+  fs = &InternalFS;
+  IdentityStore store(InternalFS, "");
+#elif defined(ESP32)
+  SPIFFS.begin(true);
+  fs = &SPIFFS;
+  IdentityStore store(SPIFFS, "/identity");
+#elif defined(RP2040_PLATFORM)
+  LittleFS.begin();
+  fs = &LittleFS;
+  IdentityStore store(LittleFS, "/identity");
+  store.begin();
+#else
+  #error "need to define filesystem"
+#endif
+  if (!store.load("_main", the_mesh.self_id)) {
+    MESH_DEBUG_PRINTLN("Generating new keypair");
+    the_mesh.self_id = radio_new_identity();   // create new random identity
+    int count = 0;
+    while (count < 10 && (the_mesh.self_id.pub_key[0] == 0x00 || the_mesh.self_id.pub_key[0] == 0xFF)) {  // reserved id hashes
+      the_mesh.self_id = radio_new_identity(); count++;
+    }
+    store.save("_main", the_mesh.self_id);
+  }
+
+  Serial.print("Repeater ID: ");
+  mesh::Utils::printHex(Serial, the_mesh.self_id.pub_key, PUB_KEY_SIZE); Serial.println();
+
   command[0] = 0;
 #ifdef ETHERNET_ENABLED
   ethernet_command[0] = 0;
