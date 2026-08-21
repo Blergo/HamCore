@@ -28,4 +28,5 @@
 5. **Branding:** Replaced stock logo and `meshcore.io` references on the OLED display with "HamCore" branding.
 6. **Hardware Power Savings:** Added u-blox M10 UBX software hibernation support when GPS is toggled off in settings.
 
-
+### v0.02a
+1. **Bug Fix - Repeater self_id all 0's:** fixed identity generation.
