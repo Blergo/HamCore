@@ -231,6 +231,20 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           onGroupDataRecv(pkt, pkt->getPayloadType(), channels[0], data, len);
         }
         action = routeRecvPacket(pkt);
+      } else {
+        // --- REPEAT COUNTER INTERCEPT FOR UNENCRYPTED BUILDS ---
+        // Packet was ALREADY SEEN, but if it has path hashes attached (getPathHashCount() > 0),
+        // a repeater in range just rebroadcasted our group message!
+        if (pkt->getPathHashCount() > 0) {
+          GroupChannel channels[1];
+          int num = searchChannelsByHash(&channel_hash, channels, 1);
+          if (num > 0) {
+            uint8_t data[MAX_PACKET_PAYLOAD];
+            memcpy(data, rawData, len);
+            // Re-trigger group data receiver to pass updated path_len to serial/app interface
+            onGroupDataRecv(pkt, pkt->getPayloadType(), channels[0], data, len);
+          }
+        }
       }
       break;
     }
