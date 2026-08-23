@@ -1,5 +1,6 @@
 #include "Identity.h"
 #include <string.h>
+#include <ed_25519.h>
 
 namespace mesh {
 
@@ -12,8 +13,11 @@ Identity::Identity(const char* pub_hex) {
 }
 
 bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) const {
-  // Stubbed for plain/unencrypted ham operation
-  return true;
+  // Real Ed25519 verification. This authenticates WHO sent a transmission (like a
+  // callsign) -- it does not hide message content, so there's no Part 97 reason to
+  // stub it out. Leaving this stubbed lets any station spoof any other station's
+  // identity on the mesh.
+  return ed25519_verify(sig, message, msg_len, pub_key) != 0;
 }
 
 bool Identity::readFrom(Stream& s) {
@@ -37,9 +41,13 @@ LocalIdentity::LocalIdentity(const char* prv_hex, const char* pub_hex) : Identit
 }
 
 LocalIdentity::LocalIdentity(RNG* rng) {
-  // Generate pseudo-random node identifiers instead of Ed25519 keypairs
-  rng->random(pub_key, PUB_KEY_SIZE);
-  memset(prv_key, 0, sizeof(prv_key));
+  // Generate a REAL Ed25519 keypair. This is node identity/authentication, not
+  // message encryption -- signatures don't obscure content, they just let other
+  // stations verify who actually sent a transmission. A random, unrelated pub_key
+  // (no matching private key) can't produce valid signatures at all.
+  uint8_t seed[PRV_KEY_SIZE];
+  rng->random(seed, PRV_KEY_SIZE);
+  ed25519_create_keypair(pub_key, prv_key, seed);
 }
 
 bool LocalIdentity::readFrom(Stream& s) {
@@ -82,12 +90,9 @@ void LocalIdentity::readFrom(const uint8_t* src, size_t len) {
 }
 
 void LocalIdentity::sign(uint8_t* sig, const uint8_t* message, int msg_len) const {
-  // Safe fill: Only zero out up to SIGNATURE_SIZE to prevent stack overwrites
-#ifdef SIGNATURE_SIZE
-  memset(sig, 0, SIGNATURE_SIZE);
-#else
-  memset(sig, 0, 32);
-#endif
+  // Real Ed25519 signature -- authenticates this node's transmissions without
+  // hiding their content (message bytes are unchanged, sent in the clear either way).
+  ed25519_sign(sig, message, msg_len, pub_key, prv_key);
 }
 
 } // namespace mesh

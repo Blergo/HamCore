@@ -2,6 +2,7 @@
 
 #include <Utils.h>
 #include <Stream.h>
+#include <ed_25519.h>
 
 namespace mesh {
 
@@ -32,11 +33,13 @@ public:
   }
 
   /**
-   * \brief  Performs Ed25519 signature verification (stubbed).
+   * \brief  Performs real Ed25519 signature verification. This authenticates
+   *         which station sent a transmission -- it has no effect on whether
+   *         the message content itself is readable, so it's kept for ham use.
    * \param sig IN - signature buffer.
    * \param message IN - the original message.
    * \param msg_len IN - the length in bytes of message.
-   * \returns true always in unencrypted mode.
+   * \returns true if the signature is valid for this identity's public key.
   */
   bool verify(const uint8_t* sig, const uint8_t* message, int msg_len) const;
 
@@ -59,14 +62,23 @@ public:
   LocalIdentity(RNG* rng);   // create new random
 
   /**
-   * \brief  Stubbed validation check.
+   * \brief  Validates an imported private key by re-deriving its public key
+   *         and checking it's non-zero. A real check, not just a null check --
+   *         this only gates whether an imported key is well-formed, it has no
+   *         bearing on message confidentiality.
   */
   static bool validatePrivateKey(const uint8_t* prv_key) {
-    return prv_key != nullptr;
+    if (prv_key == nullptr) return false;
+    uint8_t derived_pub[PUB_KEY_SIZE];
+    ed25519_derive_pub(derived_pub, prv_key);
+    uint8_t zero[PUB_KEY_SIZE];
+    memset(zero, 0, PUB_KEY_SIZE);
+    return memcmp(derived_pub, zero, PUB_KEY_SIZE) != 0;
   }
 
   /**
-   * \brief  Digital signature stub.
+   * \brief  Real Ed25519 signature -- authenticates which node sent a message,
+   *         without hiding the message content itself.
    * \param sig OUT - buffer of at least SIGNATURE_SIZE bytes.
    * \param message IN - the raw message bytes.
    * \param msg_len IN - length of message.
