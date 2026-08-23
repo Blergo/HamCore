@@ -100,6 +100,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
+  TransportKey default_scope;
   RateLimiter discover_limiter, anon_limiter;
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
@@ -196,7 +197,7 @@ public:
     _cli.savePrefs(_fs);
   }
 
-  void sendFloodScoped(mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
+  void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
 
   // CommonCLICallbacks
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;

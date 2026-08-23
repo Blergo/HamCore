@@ -728,6 +728,26 @@ void MyMesh::begin(FILESYSTEM *fs) {
   acl.load(_fs, self_id);
   region_map.load(_fs);
 
+  // establish default-scope
+  {
+    RegionEntry* r = region_map.getDefaultRegion();
+    if (r) {
+      region_map.getTransportKeysFor(*r, &default_scope, 1);
+    } else {
+#ifdef DEFAULT_FLOOD_SCOPE_NAME
+      r = region_map.findByName(DEFAULT_FLOOD_SCOPE_NAME);
+      if (r == NULL) {
+        r = region_map.putRegion(DEFAULT_FLOOD_SCOPE_NAME, 0);  // auto-create the default scope region
+        if (r) { r->flags = 0; }   // Allow-flood
+      }
+      if (r) {
+        region_map.setDefaultRegion(r);
+        region_map.getTransportKeysFor(*r, &default_scope, 1);
+      }
+#endif
+    }
+  }
+
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {
     bridge.begin();
@@ -749,6 +769,20 @@ void MyMesh::begin(FILESYSTEM *fs) {
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();
 #endif
+}
+
+void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size) {
+  // Region-scoped flood send: this only decides which repeaters are allowed to
+  // re-flood the packet (via the embedded transport code), it never hides the
+  // packet's content -- unrelated to message encryption.
+  if (scope.isNull()) {
+    sendFlood(pkt, delay_millis, path_hash_size);
+  } else {
+    uint16_t codes[2];
+    codes[0] = scope.calcTransportCode(pkt);
+    codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
+    sendFlood(pkt, codes, delay_millis, path_hash_size);
+  }
 }
 
 void MyMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {
@@ -893,6 +927,11 @@ bool MyMesh::saveRegions() {
 }
 
 void MyMesh::onDefaultRegionChanged(const RegionEntry* r) {
+  if (r) {
+    region_map.getTransportKeysFor(*r, &default_scope, 1);
+  } else {
+    memset(default_scope.key, 0, sizeof(default_scope.key));
+  }
 }
 
 void MyMesh::formatStatsReply(char *reply) {
