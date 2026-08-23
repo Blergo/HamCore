@@ -38,5 +38,6 @@
 2. **Bug Fix - GPS Sleep not working as intended:** Switch RX and TX to inputs after sending the command to go into low power mode in attempt to stop parasitic back-powering. **NEEDS TESTING**
 
 ### v0.04a
-4. **Bug Fix - App showing no repeats even when repeaters are in range and repeating the message:**
-5. **Bug Fix - Messages tagged with a region scope are flooded out unscoped:**
+5. **Bug Fix - Messages tagged with a region scope are flooded out unscoped:** Fixed the way the modified code decided if a message was scoped or not.
+6. **Code Cleanup - Cleaned up unused code:** Removed some more now unused code.
+7. **Bug Fix - Various:** Fixed various small issues fond during code cleanup
