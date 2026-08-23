@@ -231,14 +231,6 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           onGroupDataRecv(pkt, pkt->getPayloadType(), channels[0], data, len);
         }
         action = routeRecvPacket(pkt);
-      } else {
-        // --- OVERHEARD REPEAT FIX FOR UNENCRYPTED BUILDS ---
-        // Packet was ALREADY SEEN, but if it has hop path hashes attached (getPathHashCount() > 0),
-        // a repeater in range just rebroadcasted our group message over RF!
-        if (pkt->getPathHashCount() > 0) {
-          // Pass control data update to refresh path telemetry without re-emitting message text
-          onControlDataRecv(pkt);
-        }
       }
       break;
     }
