@@ -313,7 +313,24 @@ bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) 
 }
 
 void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
-  sendFlood(packet, delay_millis, path_hash_size);  // send un-scoped
+  TransportKey req_scope;
+  bool is_wildcard = recv_pkt_region != NULL && recv_pkt_region->isWildcard();
+  bool req_scope_known = recv_pkt_region != NULL && !is_wildcard
+                      && region_map.getTransportKeysFor(*recv_pkt_region, &req_scope, 1) > 0;
+
+  switch (mesh::chooseReplyScope(req_scope_known, is_wildcard, !default_scope.isNull())) {
+    case mesh::REPLY_SCOPE_REQUEST:
+      sendFloodScoped(req_scope, packet, delay_millis, path_hash_size);
+      break;
+
+    case mesh::REPLY_SCOPE_DEFAULT:
+      sendFloodScoped(default_scope, packet, delay_millis, path_hash_size);
+      break;
+
+    case mesh::REPLY_SCOPE_NONE:
+      sendFlood(packet, delay_millis, path_hash_size);
+      break;
+  }
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
