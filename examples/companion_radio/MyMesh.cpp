@@ -554,12 +554,45 @@ bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
   return _prefs.isRepeatEn();
 }
 
+void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis) {
+  // Region-scoped flood send: this only decides which repeaters are allowed to
+  // re-flood the packet (via the embedded transport code), it never hides the
+  // packet's content -- unrelated to message encryption.
+  if (scope.isNull()) {
+    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+  } else {
+    uint16_t codes[2];
+    codes[0] = scope.calcTransportCode(pkt);
+    codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
+    sendFlood(pkt, codes, delay_millis, _prefs.path_hash_mode + 1);
+  }
+}
+
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
-  sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+  // TODO: dynamic send_scope, depending on recipient and current 'home' Region
+  if (send_unscoped) {
+    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
+  } else {
+    TransportKey default_scope;
+    memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+
+    auto scope = send_scope.isNull() ? &default_scope : &send_scope;
+    sendFloodScoped(*scope, pkt, delay_millis);
+  }
 }
 void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis) {
-  sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+  // TODO: have per-channel send_scope
+  if (send_unscoped) {
+    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
+  } else {
+    TransportKey default_scope;
+    memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+
+    auto scope = send_scope.isNull() ? &default_scope : &send_scope;
+    sendFloodScoped(*scope, pkt, delay_millis);
+  }
 }
+
 
 void MyMesh::onMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
                            const char *text) {
@@ -894,6 +927,8 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   sign_data = NULL;
   dirty_contacts_expiry = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
+  memset(send_scope.key, 0, sizeof(send_scope.key));
+  send_unscoped = false;
 
   _prefs.airtime_factor = 1.0;
   strcpy(_prefs.node_name, "NONAME");
@@ -1262,8 +1297,11 @@ void MyMesh::handleCmdFrame(size_t len) {
       pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon);
     }
     if (pkt) {
-      if (len >= 2 && cmd_frame[1] == 1) {
-        sendFlood(pkt, (uint32_t)0, _prefs.path_hash_mode + 1);
+      if (len >= 2 && cmd_frame[1] == 1) { // optional param (1 = flood, 0 = zero hop)
+        unsigned long delay_millis = 0;
+        TransportKey default_scope;
+        memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+        sendFloodScoped(default_scope, pkt, delay_millis);
       } else {
         sendZeroHop(pkt);
       }
@@ -1917,13 +1955,43 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_FILE_IO_ERROR);
     }
-  } else if (cmd_frame[0] == CMD_SET_FLOOD_SCOPE_KEY) {
+  } else if (cmd_frame[0] == CMD_SET_FLOOD_SCOPE_KEY && len >= 2 && cmd_frame[1] == 0) {
+    if (len >= 2 + 16) {
+      memcpy(send_scope.key, &cmd_frame[2], sizeof(send_scope.key));  // set scope override TransportKey
+    } else {
+      memset(send_scope.key, 0, sizeof(send_scope.key));  // reset scope override
+    }
+    send_unscoped = false;
     writeOKFrame();
-  } else if (cmd_frame[0] == CMD_SET_DEFAULT_FLOOD_SCOPE) {
+  } else if (cmd_frame[0] == CMD_SET_FLOOD_SCOPE_KEY && len >= 2 && cmd_frame[1] == 1) {  // ver 12+
+    send_unscoped = true;
     writeOKFrame();
+  } else if (cmd_frame[0] == CMD_SET_DEFAULT_FLOOD_SCOPE && len >= 1) {
+    if (len >= 1+31+16) {
+      int n = strlen((char *) &cmd_frame[1]);
+      if (n > 0 && n < 31) {
+        strcpy(_prefs.default_scope_name, (char *) &cmd_frame[1]);
+        memcpy(_prefs.default_scope_key, &cmd_frame[1+31], 16);
+        savePrefs();
+        writeOKFrame();
+      } else {
+        writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+      }
+    } else {
+      memset(_prefs.default_scope_name, 0, sizeof(_prefs.default_scope_name));  // set default scope to null
+      memset(_prefs.default_scope_key, 0, sizeof(_prefs.default_scope_key));
+      savePrefs();
+      writeOKFrame();
+    }
   } else if (cmd_frame[0] == CMD_GET_DEFAULT_FLOOD_SCOPE) {
     out_frame[0] = RESP_CODE_DEFAULT_FLOOD_SCOPE;
-    _serial->writeFrame(out_frame, 1);
+    if (strlen(_prefs.default_scope_name) > 0) {
+      memcpy(&out_frame[1], _prefs.default_scope_name, 31);
+      memcpy(&out_frame[1+31], _prefs.default_scope_key, 16);
+      _serial->writeFrame(out_frame, 1+31+16);
+    } else {
+      _serial->writeFrame(out_frame, 1);   // no name or key means null
+    }
   } else if (cmd_frame[0] == CMD_SEND_CONTROL_DATA && len >= 2 && (cmd_frame[1] & 0x80) != 0) {
     auto resp = createControlData(&cmd_frame[1], len - 1);
     if (resp) {

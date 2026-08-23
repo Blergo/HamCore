@@ -68,6 +68,7 @@
 #endif
 
 #include <helpers/BaseChatMesh.h>
+#include <helpers/TransportKeyStore.h>
 
 /* -------------------------------------------------------------------------------------- */
 
@@ -112,6 +113,7 @@ protected:
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
   bool allowPacketForward(const mesh::Packet* packet) override;
 
+  void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis);
   void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
   void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
 
@@ -223,6 +225,7 @@ private:
   bool _iter_started;
   bool _cli_rescue;
   bool send_unscoped;   // force un-scoped flood
+  TransportKey send_scope;
   char cli_command[80];
   uint8_t app_target_ver;
   uint8_t *sign_data;
