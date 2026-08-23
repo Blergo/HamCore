@@ -1488,7 +1488,7 @@ void MyMesh::handleCmdFrame(size_t len) {
 #endif
   } else if (cmd_frame[0] == CMD_IMPORT_PRIVATE_KEY && len >= 65) {
 #if ENABLE_PRIVATE_KEY_IMPORT
-    if (false) { // Skip private key validation for unencrypted core
+    if (!mesh::LocalIdentity::validatePrivateKey(&cmd_frame[1])) {
         writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     } else {
         mesh::LocalIdentity identity;
