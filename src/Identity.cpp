@@ -68,24 +68,20 @@ void LocalIdentity::printTo(Stream& s) const {
 }
 
 size_t LocalIdentity::writeTo(uint8_t* dest, size_t max_len) {
-  if (max_len < PUB_KEY_SIZE) return 0;
-
-  // Safe fallback: Write pub_key first, then prv_key if space permits
-  memcpy(dest, pub_key, PUB_KEY_SIZE);
-  if (max_len >= PUB_KEY_SIZE + PRV_KEY_SIZE) {
-    memcpy(&dest[PUB_KEY_SIZE], prv_key, PRV_KEY_SIZE);
-    return PUB_KEY_SIZE + PRV_KEY_SIZE;
-  }
-  return PUB_KEY_SIZE;
+  // Used by the BLE/CLI "export private key" commands, which deal in the raw
+  // 64-byte private key alone (the public key is always derivable from it).
+  if (max_len < PRV_KEY_SIZE) return 0;
+  memcpy(dest, prv_key, PRV_KEY_SIZE);
+  return PRV_KEY_SIZE;
 }
 
 void LocalIdentity::readFrom(const uint8_t* src, size_t len) {
-  if (len >= PUB_KEY_SIZE + PRV_KEY_SIZE) {
-    memcpy(pub_key, src, PUB_KEY_SIZE);
-    memcpy(prv_key, &src[PUB_KEY_SIZE], PRV_KEY_SIZE);
-  } else if (len >= PUB_KEY_SIZE) {
-    memcpy(pub_key, src, PUB_KEY_SIZE);
-    memset(prv_key, 0, sizeof(prv_key));
+  // Used by the BLE/CLI "import private key" commands: src is the raw 64-byte
+  // private key only -- re-derive the matching public key from it, rather than
+  // treating leading bytes of the private key as if they were a public key.
+  if (len >= PRV_KEY_SIZE) {
+    memcpy(prv_key, src, PRV_KEY_SIZE);
+    ed25519_derive_pub(pub_key, prv_key);
   }
 }
 
