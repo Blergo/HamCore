@@ -830,17 +830,29 @@ bool BaseChatMesh::removeContact(ContactInfo& contact) {
 }
 
 #ifdef MAX_GROUP_CHANNELS
+#include <base64.hpp>
+
 ChannelDetails* BaseChatMesh::addChannel(const char* name, const char* psk_base64) {
   if (num_channels < MAX_GROUP_CHANNELS) {
     auto dest = &channels[num_channels];
-    mesh::Utils::sha256(dest->channel.hash, sizeof(dest->channel.hash), (const uint8_t*)name, strlen(name));
-    StrHelper::strncpy(dest->name, name, sizeof(dest->name));
-    num_channels++;
-    return dest;
+
+    // The channel hash byte MUST be derived the same way every other MeshCore
+    // device (and the companion app) derives it -- SHA256 of the PSK -- so that
+    // this fork's channel packets are recognized as belonging to that channel.
+    // The PSK bytes are used transiently, right here, purely to compute that
+    // public, non-secret identifying tag; they are never stored and never used
+    // to encrypt message content, which stays plaintext.
+    uint8_t psk[32];
+    int len = decode_base64((unsigned char *) psk_base64, strlen(psk_base64), psk);
+    if (len == 32 || len == 16) {
+      mesh::Utils::sha256(dest->channel.hash, sizeof(dest->channel.hash), psk, len);
+      StrHelper::strncpy(dest->name, name, sizeof(dest->name));
+      num_channels++;
+      return dest;
+    }
   }
   return NULL;
 }
-
 bool BaseChatMesh::getChannel(int idx, ChannelDetails& dest) {
   if (idx >= 0 && idx < MAX_GROUP_CHANNELS) {
     dest = channels[idx];
@@ -848,16 +860,15 @@ bool BaseChatMesh::getChannel(int idx, ChannelDetails& dest) {
   }
   return false;
 }
-
 bool BaseChatMesh::setChannel(int idx, const ChannelDetails& src) {
   if (idx >= 0 && idx < MAX_GROUP_CHANNELS) {
+    // src.channel.hash was already correctly derived from the PSK when the
+    // channel was first added (or previously persisted) -- trust it as-is.
     channels[idx] = src;
-    mesh::Utils::sha256(channels[idx].channel.hash, sizeof(channels[idx].channel.hash), (const uint8_t*)src.name, strlen(src.name));
     return true;
   }
   return false;
 }
-
 int BaseChatMesh::findChannelIdx(const mesh::GroupChannel& ch) {
   for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
     if (channels[i].channel.hash[0] == ch.hash[0]) return i;
