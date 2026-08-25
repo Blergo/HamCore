@@ -38,6 +38,12 @@
 2. **Bug Fix - GPS Sleep not working as intended:** Switch RX and TX to inputs after sending the command to go into low power mode in attempt to stop parasitic back-powering. **NEEDS TESTING**
 
 ### v0.04a
-5. **Bug Fix - Messages tagged with a region scope are flooded out unscoped:** Fixed the way the modified code decided if a message was scoped or not.
-6. **Code Cleanup - Cleaned up unused code:** Removed some more now unused code.
-7. **Bug Fix - Various:** Fixed various small issues fond during code cleanup
+1. **Bug Fix - Messages tagged with a region scope are flooded out unscoped:** Fixed the way the modified code decided if a message was scoped or not.
+2. **Code Cleanup - Cleaned up unused code:** Removed some more now unused code.
+3. **Bug Fix - Various:** Fixed various small issues found during code cleanup
+
+### v0.05a (Not Yet Released)
+1. **Bug Fix - Channel Hash:** Fixed broken channel hash after removal of encryption which was breaking some repeater functionality.
+2. **Bug Fix - Packet Length:** Removal of encryption left packet header 2 byte shorter, this broke some other stuff so have padded those 2 byte with 0's,  May remove the unused bytes again in the future.
+3. **Code Cleanup - Removed some unused code:** Removed some more code that is no longer used.
+4. 
