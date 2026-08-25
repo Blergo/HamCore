@@ -105,6 +105,11 @@
 #define DIRECT_SEND_PERHOP_EXTRA_MILLIS 250
 #define LAZY_CONTACTS_WRITE_DELAY       5000
 
+// well-known, publicly-published PSK for the default "Public" channel -- used only to
+// derive the channel's identifying hash byte (so it matches every other MeshCore device
+// and the companion app), never to encrypt content. Not a secret in any meaningful sense.
+#define PUBLIC_GROUP_PSK                "izOH6cXN6mrJ5e26oRXNcg=="
+
 // these are _pushed_ to client app at any time
 #define PUSH_CODE_ADVERT                0x80
 #define PUSH_CODE_PATH_UPDATED          0x81
@@ -979,7 +984,7 @@ void MyMesh::begin(bool has_display) {
   resetContacts();
   _store->loadContacts(this);
   bootstrapRTCfromContacts();
-  addChannel("Public", ""); // pre-configure unencrypted public group
+  addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure the standard public channel
   _store->loadChannels(this);
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
@@ -1712,6 +1717,15 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint8_t channel_idx = cmd_frame[1];
     ChannelDetails channel;
     StrHelper::strncpy(channel.name, (char *)&cmd_frame[2], 32);
+    if (len >= 2 + 32 + 16) {
+      // App sent a raw 16-byte PSK for this channel. As with the "Public" channel,
+      // this is used only to derive the channel's identifying hash byte (so it
+      // matches every other MeshCore device using the same PSK) -- never to
+      // encrypt content, which this fork keeps fully plaintext.
+      mesh::Utils::sha256(channel.channel.hash, sizeof(channel.channel.hash), &cmd_frame[2 + 32], 16);
+    } else {
+      memset(channel.channel.hash, 0, sizeof(channel.channel.hash));
+    }
     if (setChannel(channel_idx, channel)) {
       saveChannels();
       writeOKFrame();
