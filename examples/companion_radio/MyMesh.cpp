@@ -446,44 +446,6 @@ void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
   dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
 }
 
-void MyMesh::onOverheardRepeat(mesh::Packet *packet) {
-  if (_serial && _serial->isConnected()) {
-    // 1. Push path update (0x81)
-    int i = 0;
-    out_frame[i++] = PUSH_CODE_PATH_UPDATED;
-    out_frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
-    out_frame[i++] = (int8_t)(_radio->getLastRSSI());
-    out_frame[i++] = packet->path_len;
-    if (packet->path_len > 0) {
-      memcpy(&out_frame[i], packet->path, packet->path_len);
-      i += packet->path_len;
-    }
-    _serial->writeFrame(out_frame, i);
-
-    // 2. Push send confirmation with hop count (0x82) for UI repeat count
-    uint32_t ack_hash = 0;
-    memcpy(&ack_hash, packet->payload, 4);
-
-    for (int k = 0; k < EXPECTED_ACK_TABLE_SIZE; k++) {
-      if (expected_ack_table[k].ack != 0 && memcmp(&ack_hash, &expected_ack_table[k].ack, 4) == 0) {
-        int j = 0;
-        out_frame[j++] = PUSH_CODE_SEND_CONFIRMED; // 0x82
-        memcpy(&out_frame[j], &ack_hash, 4); j += 4;
-        
-        uint32_t trip_time = _ms->getMillis() - expected_ack_table[k].msg_sent;
-        memcpy(&out_frame[j], &trip_time, 4); j += 4;
-        
-        out_frame[j++] = packet->path_len; // Hop count returned to UI app
-        
-        _serial->writeFrame(out_frame, j);
-        
-        expected_ack_table[k].ack = 0; // Clear entry once confirmed
-        break;
-      }
-    }
-  }
-}
-
 ContactInfo* MyMesh::processAck(const uint8_t *data) {
   for (int i = 0; i < EXPECTED_ACK_TABLE_SIZE; i++) {
     if (memcmp(data, &expected_ack_table[i].ack, 4) == 0) {
