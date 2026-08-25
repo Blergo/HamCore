@@ -14,6 +14,12 @@
 // V1
 #define PATH_HASH_SIZE       1
 
+// PAYLOAD_VER_1 (see Packet.h) reserves this many bytes right after the routing
+// hash(es), originally a 2-byte MAC. This build carries no encryption, so these
+// bytes are a fixed, non-secret spacer -- kept only so wire offsets still match
+// what PAYLOAD_VER_1 declares (needed for other/stock clients parsing our packets).
+#define PAYLOAD_VER1_RESERVED_SIZE   2
+
 #define MAX_PACKET_PAYLOAD  184
 #define MAX_GROUP_DATA_LENGTH  (MAX_PACKET_PAYLOAD - 1)
 #define MAX_PATH_SIZE        64

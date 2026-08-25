@@ -131,6 +131,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       int i = 0;
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t src_hash = pkt->payload[i++];
+      i += PAYLOAD_VER1_RESERVED_SIZE;  // skip the non-secret spacer bytes
 
       uint8_t* rawData = &pkt->payload[i];
       int len = pkt->payload_len - i;
@@ -189,6 +190,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       int i = 0;
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t* sender_pub_key = &pkt->payload[i]; i += PUB_KEY_SIZE;
+      i += PAYLOAD_VER1_RESERVED_SIZE;  // skip the non-secret spacer bytes
 
       uint8_t* rawData = &pkt->payload[i];
       int len = pkt->payload_len - i;
@@ -214,6 +216,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     case PAYLOAD_TYPE_GRP_TXT: {
       int i = 0;
       uint8_t channel_hash = pkt->payload[i++];
+      i += PAYLOAD_VER1_RESERVED_SIZE;  // skip the non-secret spacer bytes
 
       uint8_t* rawData = &pkt->payload[i];
       int len = pkt->payload_len - i;
@@ -422,7 +425,7 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* path, ui
   uint8_t path_hash_size = (path_len >> 6) + 1;
   uint8_t path_hash_count = path_len & 63;
 
-  if (PATH_HASH_SIZE + PATH_HASH_SIZE + path_hash_count * path_hash_size + extra_len + 5 > MAX_PACKET_PAYLOAD) return NULL;
+  if (PATH_HASH_SIZE + PATH_HASH_SIZE + PAYLOAD_VER1_RESERVED_SIZE + path_hash_count * path_hash_size + extra_len + 5 > MAX_PACKET_PAYLOAD) return NULL;
 
   Packet* packet = obtainNewPacket();
   if (packet == NULL) {
@@ -434,6 +437,7 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* path, ui
   int len = 0;
   memcpy(&packet->payload[len], dest_hash, PATH_HASH_SIZE); len += PATH_HASH_SIZE;
   len += self_id.copyHashTo(&packet->payload[len]);
+  memset(&packet->payload[len], 0, PAYLOAD_VER1_RESERVED_SIZE); len += PAYLOAD_VER1_RESERVED_SIZE;
 
   packet->payload[len++] = path_len;
   memcpy(&packet->payload[len], path, path_hash_count * path_hash_size); len += path_hash_count * path_hash_size;
@@ -452,7 +456,7 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* path, ui
 
 Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* data, size_t data_len) {
   if (type == PAYLOAD_TYPE_TXT_MSG || type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE) {
-    if (PATH_HASH_SIZE + PATH_HASH_SIZE + data_len > MAX_PACKET_PAYLOAD) return NULL;
+    if (PATH_HASH_SIZE + PATH_HASH_SIZE + PAYLOAD_VER1_RESERVED_SIZE + data_len > MAX_PACKET_PAYLOAD) return NULL;
   } else {
     return NULL;
   }
@@ -467,6 +471,10 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
   int len = 0;
   len += dest.copyHashTo(&packet->payload[len]);
   len += self_id.copyHashTo(&packet->payload[len]);
+  // PAYLOAD_VER_1 reserves this many bytes here (originally a MAC); this build carries no
+  // encryption, so it's just a fixed, non-secret spacer to keep wire offsets aligned with
+  // what PAYLOAD_VER_1 declares -- nothing here hides or authenticates the message content.
+  memset(&packet->payload[len], 0, PAYLOAD_VER1_RESERVED_SIZE); len += PAYLOAD_VER1_RESERVED_SIZE;
   memcpy(&packet->payload[len], data, data_len); len += data_len;
 
   packet->payload_len = len;
@@ -475,7 +483,7 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
 
 Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* data, size_t data_len) {
   if (type == PAYLOAD_TYPE_ANON_REQ) {
-    if (PATH_HASH_SIZE + PUB_KEY_SIZE + data_len > MAX_PACKET_PAYLOAD) return NULL;
+    if (PATH_HASH_SIZE + PUB_KEY_SIZE + PAYLOAD_VER1_RESERVED_SIZE + data_len > MAX_PACKET_PAYLOAD) return NULL;
   } else {
     return NULL;
   }
@@ -490,6 +498,7 @@ Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, cons
   int len = 0;
   len += dest.copyHashTo(&packet->payload[len]);
   memcpy(&packet->payload[len], sender.pub_key, PUB_KEY_SIZE); len += PUB_KEY_SIZE;
+  memset(&packet->payload[len], 0, PAYLOAD_VER1_RESERVED_SIZE); len += PAYLOAD_VER1_RESERVED_SIZE;
   memcpy(&packet->payload[len], data, data_len); len += data_len;
 
   packet->payload_len = len;
@@ -498,7 +507,7 @@ Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, cons
 
 Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len) {
   if (!(type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA)) return NULL;
-  if (PATH_HASH_SIZE + data_len > MAX_PACKET_PAYLOAD) return NULL;
+  if (PATH_HASH_SIZE + PAYLOAD_VER1_RESERVED_SIZE + data_len > MAX_PACKET_PAYLOAD) return NULL;
 
   Packet* packet = obtainNewPacket();
   if (packet == NULL) {
@@ -509,6 +518,7 @@ Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, con
 
   int len = 0;
   memcpy(&packet->payload[len], channel.hash, PATH_HASH_SIZE); len += PATH_HASH_SIZE;
+  memset(&packet->payload[len], 0, PAYLOAD_VER1_RESERVED_SIZE); len += PAYLOAD_VER1_RESERVED_SIZE;
   memcpy(&packet->payload[len], data, data_len); len += data_len;
 
   packet->payload_len = len;
