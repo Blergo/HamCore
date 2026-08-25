@@ -47,4 +47,4 @@
 2. **Bug Fix - Packet Length:** Removal of encryption left packet header 2 byte shorter, this broke some other stuff so have padded those 2 byte with 0's,  May remove the unused bytes again in the future.
 3. **Code Cleanup - Removed some unused code:** Removed some more code that is no longer used. <IN PROGRESS
 4. **Unit Tests Fail:** Fixed Unit tests so they will run with the modified codebase. <TODO
-5. **PR Build Test:** Fixed PR Build Tests so they will run with the modified codebase. <TODO
+5. **PR Build Tests Fail:** Fixed PR Build Tests so they will run with the modified codebase. <TODO
