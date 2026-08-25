@@ -35,7 +35,7 @@
 
 ### v0.03a
 1. **Bug Fix - Repeater showing all 0's during node discovery:** Node Discovery response sending all 0's for name and id, this has been updated to send correct data.
-2. **Bug Fix - GPS Sleep not working as intended:** Switch RX and TX to inputs after sending the command to go into low power mode in attempt to stop parasitic back-powering. **NEEDS TESTING**
+2. **Bug Fix - GPS Sleep not working as intended:** Switch RX and TX to inputs after sending the command to go into low power mode in attempt to stop parasitic back-powering.
 
 ### v0.04a
 1. **Bug Fix - Messages tagged with a region scope are flooded out unscoped:** Fixed the way the modified code decided if a message was scoped or not.
@@ -45,6 +45,6 @@
 ### v0.05a
 1. **Bug Fix - Channel Hash:** Fixed broken channel hash after removal of encryption which was breaking some repeater functionality.
 2. **Bug Fix - Packet Length:** Removal of encryption left packet header 2 byte shorter, this broke some other stuff so have padded those 2 byte with 0's,  May remove the unused bytes again in the future.
-3. **Code Cleanup - Removed some unused code:** Removed some more code that is no longer used.
+3. **Code Cleanup - Removed some unused code:** Removed some more code that is no longer used. <IN PROGRESS
 4. **Unit Tests Fail:** Fixed Unit tests so they will run with the modified codebase. <TODO
 5. **PR Build Test:** Fixed PR Build Tests so they will run with the modified codebase. <TODO
