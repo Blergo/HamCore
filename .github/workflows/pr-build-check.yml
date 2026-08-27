@@ -30,6 +30,7 @@ jobs:
           - Heltec_v3_repeater
           #- Heltec_v3_room_server
           # nRF52
+          - wy_rpt_30dbm_repeater
           #- RAK_4631_companion_radio_ble
           #- RAK_4631_companion_radio_ethernet
           #- RAK_4631_repeater
