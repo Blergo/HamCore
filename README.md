@@ -53,4 +53,5 @@
 8. **New Feature - Path Hash Mode:** Path hash mode locked to 2 so that 3 byte hash is always used.
 
 ### v0.06a
-1. **Bug Fix - App error during setup:** App throws an error when setting the radio settings in the setup wizard, Firmware was rejecting changing the Path Hash Mode but the app reads the settings and then writes them back to the node.  Firmware now accepts the write from the app but does not change the value that is in use.  
+1. **Bug Fix - App error during setup:** App throws an error when setting the radio settings in the setup wizard, Firmware was rejecting changing the Path Hash Mode but the app reads the settings and then writes them back to the node.  Firmware now accepts the write from the app but does not change the value that is in use.
+2. **New Feature - TX Inhibit:** TX on Repeaters and Companions is disabled until after the node name has been changed. This prevents transmitting without a callsign - though for now no confirmation is made that a callsign was set in the name. 
