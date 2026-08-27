@@ -521,6 +521,13 @@ bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
   return _prefs.isRepeatEn();
 }
 
+bool MyMesh::isTransmitAllowed() const {
+  // Withhold all RF transmission until the operator has set a real station
+  // name away from the factory default -- avoids advertising/repeating under
+  // an unidentified callsign.
+  return strcmp(_prefs.node_name, _default_node_name) != 0;
+}
+
 void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis) {
   // Region-scoped flood send: this only decides which repeaters are allowed to
   // re-flood the packet (via the embedded transport code), it never hides the
@@ -938,6 +945,7 @@ void MyMesh::begin(bool has_display) {
   mesh::Utils::toHex(pub_key_hex, self_id.pub_key, 4);
   strcpy(_prefs.node_name, pub_key_hex);
 #endif
+  strcpy(_default_node_name, _prefs.node_name);   // remember factory default, for isTransmitAllowed()
 
   _store->loadPrefs(_prefs);
   sensors.node_lat = _prefs.node_lat;

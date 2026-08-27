@@ -274,7 +274,8 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
 
 void Dispatcher::checkSend() {
   if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;
-  
+  if (!isTransmitAllowed()) return;
+
   updateTxBudget();
   
   uint32_t est_airtime = _radio->getEstAirtimeFor(MAX_TRANS_UNIT);

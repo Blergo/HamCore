@@ -363,6 +363,13 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   return true;
 }
 
+bool MyMesh::isTransmitAllowed() const {
+  // Withhold all RF transmission until the operator has set a real station
+  // name away from the factory default -- avoids advertising/repeating under
+  // an unidentified callsign.
+  return strcmp(_prefs.node_name, ADVERT_NAME) != 0;
+}
+
 const char *MyMesh::getLogDateTime() {
   static char tmp[32];
   uint32_t now = getRTCClock()->getCurrentTime();

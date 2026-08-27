@@ -172,6 +172,13 @@ protected:
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
   virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
 
+  /**
+   * \brief  hook allowing subclasses to withhold ALL radio transmission (eg. until
+   *      station identification / node name has been configured away from its factory
+   *      default). Default: always allowed.
+   */
+  virtual bool isTransmitAllowed() const { return true; }
+
 public:
   void begin();
   void loop();
