@@ -48,4 +48,5 @@
 3. **Code Cleanup - Removed some unused code:** Removed some more code that is no longer used.
 4. **Unit Tests Fail:** Removed Unit tests for Kiss Modem firmware variant as it is not used in this fork.
 5. **PR Build Tests Fail:** Fixed PR Build Test by commenting out currently unused targets.
-6. **New Board:** Added WY_RPT build target and added to the PR build test. 
+6. **New Board:** Added WY_RPT build target and added to the PR build test.
+7. **New Feature:** Added constraints to limit frequency selection to within the UK 70cm band.
