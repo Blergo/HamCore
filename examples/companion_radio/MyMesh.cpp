@@ -945,11 +945,7 @@ void MyMesh::begin(bool has_display) {
 
   _prefs.rx_delay_base = constrain(_prefs.rx_delay_base, 0, 20.0f);
   _prefs.airtime_factor = constrain(_prefs.airtime_factor, 0, 9.0f);
-#if defined(FREQ_MIN_MHZ) && defined(FREQ_MAX_MHZ)
   _prefs.freq = constrain(_prefs.freq, (float)FREQ_MIN_MHZ, (float)FREQ_MAX_MHZ);
-#else
-  _prefs.freq = constrain(_prefs.freq, 150.0f, 2500.0f);
-#endif
   _prefs.bw = constrain(_prefs.bw, 7.8f, 500.0f);
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
@@ -1404,13 +1400,8 @@ void MyMesh::handleCmdFrame(size_t len) {
 
     if (repeat && !isValidClientRepeatFreq(freq)) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
-#if defined(FREQ_MIN_MHZ) && defined(FREQ_MAX_MHZ)
     } else if (freq >= (uint32_t)(FREQ_MIN_MHZ * 1000) && freq <= (uint32_t)(FREQ_MAX_MHZ * 1000) && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
         bw <= 500000) {
-#else
-    } else if (freq >= 150000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
-        bw <= 500000) {
-#endif
       _prefs.sf = sf;
       _prefs.cr = cr;
       _prefs.freq = (float)freq / 1000.0;
