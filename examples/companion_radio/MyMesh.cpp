@@ -945,6 +945,7 @@ void MyMesh::begin(bool has_display) {
 
   _prefs.rx_delay_base = constrain(_prefs.rx_delay_base, 0, 20.0f);
   _prefs.airtime_factor = constrain(_prefs.airtime_factor, 0, 9.0f);
+  _prefs.path_hash_mode = PATH_HASH_MODE;   // fixed: always 3-byte path hash
   _prefs.freq = constrain(_prefs.freq, (float)FREQ_MIN_MHZ, (float)FREQ_MAX_MHZ);
   _prefs.bw = constrain(_prefs.bw, 7.8f, 500.0f);
   _prefs.sf = constrain(_prefs.sf, 5, 12);
@@ -1459,7 +1460,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     savePrefs();
     writeOKFrame();
   } else if (cmd_frame[0] == CMD_SET_PATH_HASH_MODE) {
-    writeErrFrame(ERR_CODE_ILLEGAL_ARG);  // path hash mode is fixed at PATH_HASH_MODE
+    writeOKFrame();  // path hash mode is fixed at PATH_HASH_MODE; silently ignore any value the app sends
   } else if (cmd_frame[0] == CMD_REBOOT && memcmp(&cmd_frame[1], "reboot", 6) == 0) {
     if (dirty_contacts_expiry) {
       saveContacts();
