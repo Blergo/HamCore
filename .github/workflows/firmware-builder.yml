@@ -84,7 +84,5 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
-          name: "${{ inputs.release_title_prefix }} ${{ env.GIT_TAG_VERSION }}"
-          body: ""
           draft: true
           files: out/*
