@@ -50,4 +50,7 @@
 5. **PR Build Tests Fail:** Fixed PR Build Test by commenting out currently unused targets.
 6. **New Board - WY_RPT:** Added WY_RPT build target and added to the PR build test.
 7. **New Feature - Band Edges:** Added constraints to limit frequency selection to within the UK 70cm band.
-8. **New Feature - Path Hash Mode:** Path hash mode locked to 2 so that 3 byte hash is always used. 
+8. **New Feature - Path Hash Mode:** Path hash mode locked to 2 so that 3 byte hash is always used.
+
+### v0.06a
+1. **Bug Fix - App error during setup:** App throws an error when setting the radio settings in the setup wizard, Firmware was rejecting changing the Path Hash Mode but the app reads the settings and then writes them back to the node.  Firmware now accepts the write from the app but does not change the value that is in use.  
