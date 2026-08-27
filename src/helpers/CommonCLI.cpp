@@ -109,14 +109,14 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     _prefs->tx_delay_factor = constrain(_prefs->tx_delay_factor, 0, 2.0f);
     _prefs->direct_tx_delay_factor = constrain(_prefs->direct_tx_delay_factor, 0, 2.0f);
     _prefs->airtime_factor = constrain(_prefs->airtime_factor, 0, 9.0f);
-    _prefs->freq = constrain(_prefs->freq, 150.0f, 2500.0f);
+    _prefs->freq = constrain(_prefs->freq, (float)FREQ_MIN_MHZ, (float)FREQ_MAX_MHZ);
     _prefs->bw = constrain(_prefs->bw, 7.8f, 500.0f);
     _prefs->sf = constrain(_prefs->sf, 5, 12);
     _prefs->cr = constrain(_prefs->cr, 5, 8);
     _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, -9, 30);
     _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
     _prefs->adc_multiplier = constrain(_prefs->adc_multiplier, 0.0f, 10.0f);
-    _prefs->path_hash_mode = constrain(_prefs->path_hash_mode, 0, 2);   // NOTE: mode 3 reserved for future
+    _prefs->path_hash_mode = PATH_HASH_MODE;   // fixed: always 3-byte path hash
 
     // sanitise bad bridge pref values
     _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
@@ -247,7 +247,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       uint8_t sf  = num > 2 ? atoi(parts[2]) : 0;
       uint8_t cr  = num > 3 ? atoi(parts[3]) : 0;
       int temp_timeout_mins  = num > 4 ? atoi(parts[4]) : 0;
-      if (freq >= 150.0f && freq <= 2500.0f && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f && temp_timeout_mins > 0) {
+      if (freq >= (float)FREQ_MIN_MHZ && freq <= (float)FREQ_MAX_MHZ && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f && temp_timeout_mins > 0) {
         _callbacks->applyTempRadioParams(freq, bw, sf, cr, temp_timeout_mins);
         sprintf(reply, "OK - temp params for %d mins", temp_timeout_mins);
       } else {
@@ -593,7 +593,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     float bw    = num > 1 ? strtof(parts[1], nullptr) : 0.0f;
     uint8_t sf  = num > 2 ? atoi(parts[2]) : 0;
     uint8_t cr  = num > 3 ? atoi(parts[3]) : 0;
-    if (freq >= 150.0f && freq <= 2500.0f && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f) {
+    if (freq >= (float)FREQ_MIN_MHZ && freq <= (float)FREQ_MAX_MHZ && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f) {
       _prefs->sf = sf;
       _prefs->cr = cr;
       _prefs->freq = freq;
@@ -675,16 +675,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     *dp = 0;
     savePrefs();
     strcpy(reply, "OK");
-  } else if (memcmp(config, "path.hash.mode ", 15) == 0) {
-    config += 15;
-    uint8_t mode = atoi(config);
-    if (mode < 3) {
-      _prefs->path_hash_mode = mode;
-      savePrefs();
-      strcpy(reply, "OK");
-    } else {
-      strcpy(reply, "Error, must be 0,1, or 2");
-    }
   } else if (memcmp(config, "loop.detect ", 12) == 0) {
     config += 12;
     uint8_t mode;
@@ -711,9 +701,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _callbacks->setTxPower(_prefs->tx_power_dbm);
     strcpy(reply, "OK");
   } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
-    _prefs->freq = atof(&config[5]);
-    savePrefs();
-    strcpy(reply, "OK - reboot to apply");
+    float new_freq = atof(&config[5]);
+    if (new_freq >= (float)FREQ_MIN_MHZ && new_freq <= (float)FREQ_MAX_MHZ) {
+      _prefs->freq = new_freq;
+      savePrefs();
+      strcpy(reply, "OK - reboot to apply");
+    } else {
+      strcpy(reply, "Error, frequency out of permitted range");
+    }
 #ifdef WITH_BRIDGE
   } else if (memcmp(config, "bridge.enabled ", 15) == 0) {
     _prefs->bridge_enabled = memcmp(&config[15], "on", 2) == 0;
@@ -884,7 +879,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
     *reply = 0;  // set null terminator
   } else if (memcmp(config, "path.hash.mode", 14) == 0) {
-    sprintf(reply, "> %d", (uint32_t)_prefs->path_hash_mode);
+    sprintf(reply, "> %d (fixed)", PATH_HASH_MODE);
   } else if (memcmp(config, "loop.detect", 11) == 0) {
     if (_prefs->loop_detect == LOOP_DETECT_OFF) {
       strcpy(reply, "> off");

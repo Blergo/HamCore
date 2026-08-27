@@ -526,19 +526,19 @@ void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint3
   // re-flood the packet (via the embedded transport code), it never hides the
   // packet's content -- unrelated to message encryption.
   if (scope.isNull()) {
-    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+    sendFlood(pkt, delay_millis, PATH_HASH_MODE + 1);
   } else {
     uint16_t codes[2];
     codes[0] = scope.calcTransportCode(pkt);
     codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
-    sendFlood(pkt, codes, delay_millis, _prefs.path_hash_mode + 1);
+    sendFlood(pkt, codes, delay_millis, PATH_HASH_MODE + 1);
   }
 }
 
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
   // TODO: dynamic send_scope, depending on recipient and current 'home' Region
   if (send_unscoped) {
-    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
+    sendFlood(pkt, delay_millis, PATH_HASH_MODE + 1);  // app has explicitly requested un-scoped
   } else {
     TransportKey default_scope;
     memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
@@ -550,7 +550,7 @@ void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, ui
 void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis) {
   // TODO: have per-channel send_scope
   if (send_unscoped) {
-    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
+    sendFlood(pkt, delay_millis, PATH_HASH_MODE + 1);  // app has explicitly requested un-scoped
   } else {
     TransportKey default_scope;
     memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
@@ -945,7 +945,7 @@ void MyMesh::begin(bool has_display) {
 
   _prefs.rx_delay_base = constrain(_prefs.rx_delay_base, 0, 20.0f);
   _prefs.airtime_factor = constrain(_prefs.airtime_factor, 0, 9.0f);
-  _prefs.freq = constrain(_prefs.freq, 150.0f, 2500.0f);
+  _prefs.freq = constrain(_prefs.freq, (float)FREQ_MIN_MHZ, (float)FREQ_MAX_MHZ);
   _prefs.bw = constrain(_prefs.bw, 7.8f, 500.0f);
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
@@ -1050,7 +1050,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     StrHelper::strzcpy((char *)&out_frame[i], FIRMWARE_VERSION, 20);
     i += 20;
     out_frame[i++] = _prefs.isRepeatEn() ? 1 : 0;
-    out_frame[i++] = _prefs.path_hash_mode;
+    out_frame[i++] = PATH_HASH_MODE;
     _serial->writeFrame(out_frame, i);
   } else if (cmd_frame[0] == CMD_APP_START && len >= 8) {
     char *app_name = (char *)&cmd_frame[8];
@@ -1400,7 +1400,7 @@ void MyMesh::handleCmdFrame(size_t len) {
 
     if (repeat && !isValidClientRepeatFreq(freq)) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
-    } else if (freq >= 150000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
+    } else if (freq >= (uint32_t)(FREQ_MIN_MHZ * 1000) && freq <= (uint32_t)(FREQ_MAX_MHZ * 1000) && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
         bw <= 500000) {
       _prefs.sf = sf;
       _prefs.cr = cr;
@@ -1458,14 +1458,8 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
     savePrefs();
     writeOKFrame();
-  } else if (cmd_frame[0] == CMD_SET_PATH_HASH_MODE && cmd_frame[1] == 0 && len >= 3) {
-    if (cmd_frame[2] >= 3) {
-      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
-    } else {
-      _prefs.path_hash_mode = cmd_frame[2];
-      savePrefs();
-      writeOKFrame();
-    }
+  } else if (cmd_frame[0] == CMD_SET_PATH_HASH_MODE) {
+    writeErrFrame(ERR_CODE_ILLEGAL_ARG);  // path hash mode is fixed at PATH_HASH_MODE
   } else if (cmd_frame[0] == CMD_REBOOT && memcmp(&cmd_frame[1], "reboot", 6) == 0) {
     if (dirty_contacts_expiry) {
       saveContacts();

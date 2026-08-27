@@ -35,10 +35,19 @@
 
 ### v0.03a
 1. **Bug Fix - Repeater showing all 0's during node discovery:** Node Discovery response sending all 0's for name and id, this has been updated to send correct data.
-2. **Bug Fix - GPS Sleep not working as intended:** Switch RX and TX to inputs after sending the command to go into low power mode in attempt to stop parasitic back-powering. **NEEDS TESTING**
+2. **Bug Fix - GPS Sleep not working as intended:** Switch RX and TX to inputs after sending the command to go into low power mode in attempt to stop parasitic back-powering.
 
 ### v0.04a
 1. **Bug Fix - Messages tagged with a region scope are flooded out unscoped:** Fixed the way the modified code decided if a message was scoped or not.
 2. **Code Cleanup - Cleaned up unused code:** Removed some more now unused code.
 3. **Bug Fix - Various:** Fixed various small issues found during code cleanup
 
+### v0.05a
+1. **Bug Fix - Channel Hash:** Fixed broken channel hash after removal of encryption which was breaking some repeater functionality.
+2. **Bug Fix - Packet Length:** Removal of encryption left packet header 2 byte shorter, this broke some other stuff so have padded those 2 byte with 0's,  May remove the unused bytes again in the future.
+3. **Code Cleanup - Removed some unused code:** Removed some more code that is no longer used.
+4. **Unit Tests Fail:** Removed Unit tests for Kiss Modem firmware variant as it is not used in this fork.
+5. **PR Build Tests Fail:** Fixed PR Build Test by commenting out currently unused targets.
+6. **New Board - WY_RPT:** Added WY_RPT build target and added to the PR build test.
+7. **New Feature - Band Edges:** Added constraints to limit frequency selection to within the UK 70cm band.
+8. **New Feature - Path Hash Mode:** Path hash mode locked to 2 so that 3 byte hash is always used. 
