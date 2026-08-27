@@ -66,7 +66,7 @@ public:
   uint8_t rx_boosted_gain = 0; // power settings
   uint8_t radio_fem_rxgain = 0; // LoRa FEM RX gain setting
   uint8_t radio_fem_txgain = 0; // LoRa FEM TX gain setting
-  uint8_t path_hash_mode = 0;   // which path mode to use when sending
+  uint8_t path_hash_mode = PATH_HASH_MODE;   // which path mode to use when sending
   uint8_t loop_detect = 0;
   uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
   uint8_t extra_sf[4];

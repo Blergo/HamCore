@@ -812,7 +812,7 @@ void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
   mesh::Packet *pkt = createSelfAdvert();
   if (pkt) {
     if (flood) {
-      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+      sendFlood(pkt, delay_millis, PATH_HASH_MODE + 1);
     } else {
       sendZeroHop(pkt, delay_millis);
     }
@@ -1052,7 +1052,7 @@ void MyMesh::loop() {
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
     uint32_t delay_millis = 0;
-    if (pkt) sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+    if (pkt) sendFlood(pkt, delay_millis, PATH_HASH_MODE + 1);
 
     updateFloodAdvertTimer();
     updateAdvertTimer();
