@@ -55,3 +55,4 @@
 ### v0.06a
 1. **Bug Fix - App error during setup:** App throws an error when setting the radio settings in the setup wizard, Firmware was rejecting changing the Path Hash Mode but the app reads the settings and then writes them back to the node.  Firmware now accepts the write from the app but does not change the value that is in use.
 2. **New Feature - TX Inhibit:** TX on Repeaters and Companions is disabled until after the node name has been changed. This prevents transmitting without a callsign - though for now no confirmation is made that a callsign was set in the name. 
+3. **Bug Fix - BLE Name Prefix:** Locked the companion's Bluetooth advertised name prefix to `HamCore-` so no board variant can override it. Our companion app only lists devices advertising that prefix, so a variant-specific override would have made the device invisible to the app.

@@ -63,9 +63,9 @@
 #define OFFLINE_QUEUE_SIZE 16
 #endif
 
-#ifndef BLE_NAME_PREFIX
+// Fixed, non-overridable: the companion app only lists devices advertising
+// this prefix, so no board variant may redefine it.
 #define BLE_NAME_PREFIX "HamCore-"
-#endif
 
 #include <helpers/BaseChatMesh.h>
 #include <helpers/TransportKeyStore.h>
