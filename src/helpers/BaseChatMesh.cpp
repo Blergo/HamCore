@@ -549,9 +549,11 @@ int BaseChatMesh::sendLogin(const ContactInfo& recipient, const char* password, 
       memcpy(&temp[8], password, len);
       tlen = 8 + len;
     } else {
-      int len = strlen(password); if (len > 15) len = 15;
-      memcpy(&temp[4], password, len);
-      tlen = 4 + len;
+      // Repeaters: no password auth any more. 'password' is repurposed here as a
+      // single login-type selector byte (ANON_REQ_TYPE_LOGIN_GUEST / _ADMIN), one
+      // per app login button, matching what MyMesh::onAnonDataRecv() now expects.
+      temp[4] = (uint8_t) password[0];
+      tlen = 5;
     }
 
     pkt = createAnonDatagram(PAYLOAD_TYPE_ANON_REQ, self_id, recipient.id, temp, tlen);
