@@ -1710,7 +1710,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       out_frame[i++] = channel_idx;
       strcpy((char *)&out_frame[i], channel.name);
       i += 32;
-      memset(&out_frame[i], 0, 16); // zero out secret bytes for plain text unencrypted channels
+      memcpy(&out_frame[i], channel.channel.secret, 16); // NOTE: only 128-bit supported
       i += 16;
       _serial->writeFrame(out_frame, i);
     } else {
@@ -1720,14 +1720,14 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint8_t channel_idx = cmd_frame[1];
     ChannelDetails channel;
     StrHelper::strncpy(channel.name, (char *)&cmd_frame[2], 32);
+    memset(channel.channel.secret, 0, sizeof(channel.channel.secret));
     if (len >= 2 + 32 + 16) {
       // App sent a raw 16-byte PSK for this channel. As with the "Public" channel,
       // this is used only to derive the channel's identifying hash byte (so it
       // matches every other MeshCore device using the same PSK) -- never to
-      // encrypt content, which this fork keeps fully plaintext.
-      mesh::Utils::sha256(channel.channel.hash, sizeof(channel.channel.hash), &cmd_frame[2 + 32], 16);
-    } else {
-      memset(channel.channel.hash, 0, sizeof(channel.channel.hash));
+      // encrypt content, which this fork keeps fully plaintext. Kept (not
+      // discarded) so setChannel() can re-derive the hash after a reboot.
+      memcpy(channel.channel.secret, &cmd_frame[2 + 32], 16); // NOTE: only 128-bit supported
     }
     if (setChannel(channel_idx, channel)) {
       saveChannels();
