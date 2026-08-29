@@ -591,10 +591,49 @@ void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32
 
 void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx,
                             uint8_t *data, size_t len) {
-  // OTA Admin Disabled: Completely ignore over-the-air request packets or CLI commands
-  if (type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_TXT_MSG) {
-    MESH_DEBUG_PRINTLN("OTA Admin disabled - ignoring packet from sender idx: %d", sender_idx);
+  if (type == PAYLOAD_TYPE_TXT_MSG) {
+    // OTA Admin Disabled: remote CLI commands stay blocked. No client can hold
+    // admin permissions while ANON_REQ_TYPE_LOGIN_ADMIN is rejected outright, so
+    // this is currently equivalent to the isAdmin()-gated check stock uses here.
+    MESH_DEBUG_PRINTLN("OTA Admin disabled - ignoring CLI packet from sender idx: %d", sender_idx);
     return;
+  }
+  if (type != PAYLOAD_TYPE_REQ || len <= 4) return;
+
+  int i = matching_peer_indexes[sender_idx];
+  if (i < 0 || i >= acl.getNumClients()) {
+    MESH_DEBUG_PRINTLN("onPeerDataRecv: invalid peer idx: %d", i);
+    return;
+  }
+  ClientInfo* client = acl.getClientByIdx(i);
+
+  uint32_t timestamp;
+  memcpy(&timestamp, data, 4);
+  if (timestamp <= client->last_timestamp) {
+    MESH_DEBUG_PRINTLN("onPeerDataRecv: possible replay attack detected");
+    return;
+  }
+
+  int reply_len = handleRequest(client, timestamp, &data[4], len - 4);
+  if (reply_len == 0) return;  // invalid, or not permitted for this client's role
+
+  client->last_timestamp = timestamp;
+  client->last_activity = getRTCClock()->getCurrentTime();
+
+  if (packet->isRouteFlood()) {
+    // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
+    mesh::Packet *path = createPathReturn(client->id, packet->path, packet->path_len,
+                                          PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
+    if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+  } else {
+    mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, reply_data, reply_len);
+    if (reply) {
+      if (client->out_path_len != OUT_PATH_UNKNOWN) {
+        sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
+      } else {
+        sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+      }
+    }
   }
 }
 
