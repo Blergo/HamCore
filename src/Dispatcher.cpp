@@ -273,8 +273,18 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
 }
 
 void Dispatcher::checkSend() {
+  if (!isTransmitAllowed()) {
+    // Discard anything queued while transmission is withheld -- otherwise it
+    // would go out later with stale content (eg. a self-advert built with the
+    // factory default name) the instant isTransmitAllowed() finally returns true.
+    while (_mgr->getOutboundTotal() > 0) {
+      Packet* p = _mgr->removeOutboundByIdx(0);
+      if (p) _mgr->free(p);
+    }
+    return;
+  }
   if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;
-  
+
   updateTxBudget();
   
   uint32_t est_airtime = _radio->getEstAirtimeFor(MAX_TRANS_UNIT);

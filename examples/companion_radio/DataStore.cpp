@@ -328,11 +328,10 @@ void DataStore::loadChannels(DataStoreHost* host) {
       while (!full) {
         ChannelDetails ch;
         uint8_t unused[4];
-        uint8_t dummy_secret[32];
 
         bool success = (file.read(unused, 4) == 4);
         success = success && (file.read((uint8_t *)ch.name, 32) == 32);
-        success = success && (file.read(dummy_secret, 32) == 32);
+        success = success && (file.read((uint8_t *)ch.channel.secret, 32) == 32);
 
         if (!success) break; // EOF
 
@@ -352,14 +351,12 @@ void DataStore::saveChannels(DataStoreHost* host) {
     uint8_t channel_idx = 0;
     ChannelDetails ch;
     uint8_t unused[4];
-    uint8_t dummy_secret[32];
     memset(unused, 0, 4);
-    memset(dummy_secret, 0, 32);
 
     while (host->getChannelForSave(channel_idx, ch)) {
       bool success = (file.write(unused, 4) == 4);
       success = success && (file.write((uint8_t *)ch.name, 32) == 32);
-      success = success && (file.write(dummy_secret, 32) == 32);
+      success = success && (file.write((uint8_t *)ch.channel.secret, 32) == 32);
 
       if (!success) break; // write failed
       channel_idx++;

@@ -549,9 +549,11 @@ int BaseChatMesh::sendLogin(const ContactInfo& recipient, const char* password, 
       memcpy(&temp[8], password, len);
       tlen = 8 + len;
     } else {
-      int len = strlen(password); if (len > 15) len = 15;
-      memcpy(&temp[4], password, len);
-      tlen = 4 + len;
+      // Repeaters: no password auth any more. 'password' is repurposed here as a
+      // single login-type selector byte (ANON_REQ_TYPE_LOGIN_GUEST / _ADMIN), one
+      // per app login button, matching what MyMesh::onAnonDataRecv() now expects.
+      temp[4] = (uint8_t) password[0];
+      tlen = 5;
     }
 
     pkt = createAnonDatagram(PAYLOAD_TYPE_ANON_REQ, self_id, recipient.id, temp, tlen);
@@ -839,13 +841,15 @@ ChannelDetails* BaseChatMesh::addChannel(const char* name, const char* psk_base6
     // The channel hash byte MUST be derived the same way every other MeshCore
     // device (and the companion app) derives it -- SHA256 of the PSK -- so that
     // this fork's channel packets are recognized as belonging to that channel.
-    // The PSK bytes are used transiently, right here, purely to compute that
-    // public, non-secret identifying tag; they are never stored and never used
-    // to encrypt message content, which stays plaintext.
+    // The PSK itself is kept (not just used transiently) purely so the hash can
+    // be correctly re-derived after this channel is reloaded from storage; it is
+    // never used to encrypt message content, which stays plaintext.
     uint8_t psk[32];
     int len = decode_base64((unsigned char *) psk_base64, strlen(psk_base64), psk);
     if (len == 32 || len == 16) {
-      mesh::Utils::sha256(dest->channel.hash, sizeof(dest->channel.hash), psk, len);
+      memset(dest->channel.secret, 0, sizeof(dest->channel.secret));
+      memcpy(dest->channel.secret, psk, len);
+      mesh::Utils::sha256(dest->channel.hash, sizeof(dest->channel.hash), dest->channel.secret, len);
       StrHelper::strncpy(dest->name, name, sizeof(dest->name));
       num_channels++;
       return dest;
@@ -861,17 +865,25 @@ bool BaseChatMesh::getChannel(int idx, ChannelDetails& dest) {
   return false;
 }
 bool BaseChatMesh::setChannel(int idx, const ChannelDetails& src) {
+  static uint8_t zeroes[16] = { 0 };
+
   if (idx >= 0 && idx < MAX_GROUP_CHANNELS) {
-    // src.channel.hash was already correctly derived from the PSK when the
-    // channel was first added (or previously persisted) -- trust it as-is.
     channels[idx] = src;
+    // Re-derive the hash from the stored PSK (rather than trusting src.channel.hash
+    // as-is) so that reloading a channel from disk after a reboot regenerates the
+    // correct hash even though only the PSK, not the hash, is what gets persisted.
+    if (memcmp(&src.channel.secret[16], zeroes, 16) == 0) {
+      mesh::Utils::sha256(channels[idx].channel.hash, sizeof(channels[idx].channel.hash), src.channel.secret, 16);  // 128-bit key
+    } else {
+      mesh::Utils::sha256(channels[idx].channel.hash, sizeof(channels[idx].channel.hash), src.channel.secret, 32);  // 256-bit key
+    }
     return true;
   }
   return false;
 }
 int BaseChatMesh::findChannelIdx(const mesh::GroupChannel& ch) {
   for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
-    if (channels[i].channel.hash[0] == ch.hash[0]) return i;
+    if (memcmp(ch.secret, channels[i].channel.secret, sizeof(ch.secret)) == 0) return i;
   }
   return -1;
 }

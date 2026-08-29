@@ -7,7 +7,9 @@ namespace mesh {
 class GroupChannel {
 public:
   uint8_t hash[PATH_HASH_SIZE];
-  // secret[PUB_KEY_SIZE] removed — channels are unencrypted plaintext
+  // PSK is kept (not used for encryption -- channels stay unencrypted plaintext)
+  // purely so 'hash' can be correctly re-derived after reload from storage.
+  uint8_t secret[PUB_KEY_SIZE];
 };
 
 /**

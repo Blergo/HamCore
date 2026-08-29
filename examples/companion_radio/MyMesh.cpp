@@ -521,6 +521,13 @@ bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
   return _prefs.isRepeatEn();
 }
 
+bool MyMesh::isTransmitAllowed() const {
+  // Withhold all RF transmission until the operator has set a real station
+  // name away from the factory default -- avoids advertising/repeating under
+  // an unidentified callsign.
+  return strcmp(_prefs.node_name, _default_node_name) != 0;
+}
+
 void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis) {
   // Region-scoped flood send: this only decides which repeaters are allowed to
   // re-flood the packet (via the embedded transport code), it never hides the
@@ -938,6 +945,7 @@ void MyMesh::begin(bool has_display) {
   mesh::Utils::toHex(pub_key_hex, self_id.pub_key, 4);
   strcpy(_prefs.node_name, pub_key_hex);
 #endif
+  strcpy(_default_node_name, _prefs.node_name);   // remember factory default, for isTransmitAllowed()
 
   _store->loadPrefs(_prefs);
   sensors.node_lat = _prefs.node_lat;
@@ -945,6 +953,7 @@ void MyMesh::begin(bool has_display) {
 
   _prefs.rx_delay_base = constrain(_prefs.rx_delay_base, 0, 20.0f);
   _prefs.airtime_factor = constrain(_prefs.airtime_factor, 0, 9.0f);
+  _prefs.path_hash_mode = PATH_HASH_MODE;   // fixed: always 3-byte path hash
   _prefs.freq = constrain(_prefs.freq, (float)FREQ_MIN_MHZ, (float)FREQ_MAX_MHZ);
   _prefs.bw = constrain(_prefs.bw, 7.8f, 500.0f);
   _prefs.sf = constrain(_prefs.sf, 5, 12);
@@ -1224,6 +1233,10 @@ void MyMesh::handleCmdFrame(size_t len) {
     memcpy(_prefs.node_name, &cmd_frame[1], nlen);
     _prefs.node_name[nlen] = 0;
     savePrefs();
+    // Announce under the new name right away, rather than waiting for the next
+    // periodic advert interval (which may be a long time, and would otherwise
+    // still be showing the old name until then).
+    advert();
     writeOKFrame();
   } else if (cmd_frame[0] == CMD_SET_ADVERT_LATLON && len >= 9) {
     int32_t lat, lon, alt = 0;
@@ -1459,7 +1472,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     savePrefs();
     writeOKFrame();
   } else if (cmd_frame[0] == CMD_SET_PATH_HASH_MODE) {
-    writeErrFrame(ERR_CODE_ILLEGAL_ARG);  // path hash mode is fixed at PATH_HASH_MODE
+    writeOKFrame();  // path hash mode is fixed at PATH_HASH_MODE; silently ignore any value the app sends
   } else if (cmd_frame[0] == CMD_REBOOT && memcmp(&cmd_frame[1], "reboot", 6) == 0) {
     if (dirty_contacts_expiry) {
       saveContacts();
@@ -1701,7 +1714,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       out_frame[i++] = channel_idx;
       strcpy((char *)&out_frame[i], channel.name);
       i += 32;
-      memset(&out_frame[i], 0, 16); // zero out secret bytes for plain text unencrypted channels
+      memcpy(&out_frame[i], channel.channel.secret, 16); // NOTE: only 128-bit supported
       i += 16;
       _serial->writeFrame(out_frame, i);
     } else {
@@ -1711,14 +1724,14 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint8_t channel_idx = cmd_frame[1];
     ChannelDetails channel;
     StrHelper::strncpy(channel.name, (char *)&cmd_frame[2], 32);
+    memset(channel.channel.secret, 0, sizeof(channel.channel.secret));
     if (len >= 2 + 32 + 16) {
       // App sent a raw 16-byte PSK for this channel. As with the "Public" channel,
       // this is used only to derive the channel's identifying hash byte (so it
       // matches every other MeshCore device using the same PSK) -- never to
-      // encrypt content, which this fork keeps fully plaintext.
-      mesh::Utils::sha256(channel.channel.hash, sizeof(channel.channel.hash), &cmd_frame[2 + 32], 16);
-    } else {
-      memset(channel.channel.hash, 0, sizeof(channel.channel.hash));
+      // encrypt content, which this fork keeps fully plaintext. Kept (not
+      // discarded) so setChannel() can re-derive the hash after a reboot.
+      memcpy(channel.channel.secret, &cmd_frame[2 + 32], 16); // NOTE: only 128-bit supported
     }
     if (setChannel(channel_idx, channel)) {
       saveChannels();

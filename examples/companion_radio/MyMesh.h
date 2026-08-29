@@ -63,9 +63,9 @@
 #define OFFLINE_QUEUE_SIZE 16
 #endif
 
-#ifndef BLE_NAME_PREFIX
+// Fixed, non-overridable: the companion app only lists devices advertising
+// this prefix, so no board variant may redefine it.
 #define BLE_NAME_PREFIX "HamCore-"
-#endif
 
 #include <helpers/BaseChatMesh.h>
 #include <helpers/TransportKeyStore.h>
@@ -112,6 +112,7 @@ protected:
   uint8_t getExtraAckTransmitCount() const override;
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
   bool allowPacketForward(const mesh::Packet* packet) override;
+  bool isTransmitAllowed() const override;
 
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis);
   void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
@@ -230,6 +231,7 @@ private:
   uint8_t *sign_data;
   uint32_t sign_data_len;
   unsigned long dirty_contacts_expiry;
+  char _default_node_name[32];   // factory-assigned name, captured in begin(); used by isTransmitAllowed()
 
   uint8_t cmd_frame[MAX_FRAME_SIZE + 1];
   uint8_t out_frame[MAX_FRAME_SIZE + 1];

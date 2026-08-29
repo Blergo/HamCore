@@ -55,6 +55,8 @@
 #define ANON_REQ_TYPE_REGIONS      0x01
 #define ANON_REQ_TYPE_OWNER        0x02
 #define ANON_REQ_TYPE_BASIC        0x03   // just remote clock
+#define ANON_REQ_TYPE_LOGIN_GUEST  0x04   // no authentication required, always granted
+#define ANON_REQ_TYPE_LOGIN_ADMIN  0x05   // FUTURE: signature/pubkey-based auth; rejected for now
 
 #define CLI_REPLY_DELAY_MILLIS      600
 
@@ -363,6 +365,13 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   return true;
 }
 
+bool MyMesh::isTransmitAllowed() const {
+  // Withhold all RF transmission until the operator has set a real station
+  // name away from the factory default -- avoids advertising/repeating under
+  // an unidentified callsign.
+  return strcmp(_prefs.node_name, ADVERT_NAME) != 0;
+}
+
 const char *MyMesh::getLogDateTime() {
   static char tmp[32];
   uint32_t now = getRTCClock()->getCurrentTime();
@@ -483,9 +492,39 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const mesh::Identity &sender,
     uint8_t reply_len = 0;
 
     reply_path_len = 0xFF;
-    if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
-      MESH_DEBUG_PRINTLN("OTA login attempt blocked");
-      return; // OTA Admin Disabled: Ignore login attempts
+    if (data[4] == ANON_REQ_TYPE_LOGIN_GUEST) {
+      // Guest login: no authentication of any kind. Always granted, and this path
+      // can never grant more than guest, and never downgrades a client that was
+      // already provisioned locally (non-OTA) with higher permissions.
+      ClientInfo* client = acl.putClient(sender, 0);
+      if (timestamp <= client->last_timestamp) {
+        MESH_DEBUG_PRINTLN("Possible login replay attack!");
+        return;
+      }
+      client->last_timestamp = timestamp;
+      client->last_activity = getRTCClock()->getCurrentTime();
+      if ((client->permissions & PERM_ACL_ROLE_MASK) < PERM_ACL_READ_ONLY) {
+        client->permissions = (client->permissions & ~PERM_ACL_ROLE_MASK) | PERM_ACL_GUEST;
+      }
+      if (packet->isRouteFlood()) {
+        client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
+      }
+
+      uint32_t now = getRTCClock()->getCurrentTimeUnique();
+      memcpy(reply_data, &now, 4);
+      reply_data[4] = RESP_SERVER_LOGIN_OK;
+      reply_data[5] = 0;  // Legacy: was recommended keep-alive interval (secs / 16)
+      reply_data[6] = client->isAdmin() ? 1 : 0;
+      reply_data[7] = client->permissions;
+      getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
+      reply_data[12] = FIRMWARE_VER_LEVEL;
+      reply_len = 13;
+    } else if (data[4] == ANON_REQ_TYPE_LOGIN_ADMIN) {
+      // FUTURE: signature/pubkey-based admin authentication (verify a signed
+      // challenge against sender's identity, no shared password involved).
+      // Not implemented yet -- Remote Admin stays fully unreachable until it is.
+      MESH_DEBUG_PRINTLN("Admin login rejected: not yet implemented");
+      return;
     } else if (data[4] == ANON_REQ_TYPE_REGIONS && packet->isRouteDirect()) {
       reply_len = handleAnonRegionsReq(sender, timestamp, &data[5]);
     } else if (data[4] == ANON_REQ_TYPE_OWNER && packet->isRouteDirect()) {
