@@ -52,7 +52,7 @@
 7. **New Feature - Band Edges:** Added constraints to limit frequency selection to within the UK 70cm band.
 8. **New Feature - Path Hash Mode:** Path hash mode locked to 2 so that 3 byte hash is always used.
 
-### v0.06a
+### v0.1.0
 1. **Bug Fix - App error during setup:** App throws an error when setting the radio settings in the setup wizard, Firmware was rejecting changing the Path Hash Mode but the app reads the settings and then writes them back to the node.  Firmware now accepts the write from the app but does not change the value that is in use.
 2. **New Feature - TX Inhibit:** TX on Repeaters and Companions is disabled until after the node name has been changed. This prevents transmitting without a callsign - though for now no confirmation is made that a callsign was set in the name. 
 3. **Bug Fix - BLE Name Prefix:** Locked the companion's Bluetooth advertised name prefix to `HamCore-` so no board variant can override it. Our companion app only lists devices advertising that prefix, so a variant-specific override would have made the device invisible to the app.
@@ -60,3 +60,4 @@
 5. **Bug Fix - Heard Repeats:** Fixed bug that was causing channel PSK to not be stored properly, even though this was no longer used for encryption the channel hash is used for other stuff like heard repeats. 
 6. **Bug Fix - Guest Login Never Replied:** `sendLogin()` was still sending the old password string, so the byte the repeater checked against the new guest/admin request types never matched anything and no reply was ever sent. The sender now sends the matching login-type byte instead, for repeater (non-room) logins.
 7. **Bug Fix - TX Inhibit Sent Stale Name:** The first message queued before the name was changed (eg. the boot-time self-advert) was still transmitted as-is once TX inhibit lifted, carrying the old name. Anything queued while transmission is withheld is now discarded instead of held. Also, changing the name now triggers an immediate re-advert on both Repeaters and Companions, instead of waiting for the next periodic interval.
+8. **Bug Fix - Repeater Never Answered Status/Telemetry Requests:** The repeater's handling of incoming request packets was left over from when remote admin was first blanket-disabled, and unconditionally ignored every request (including guest-permitted ones like status). It now correctly dispatches to the existing request handler and replies, while remote CLI-over-radio commands stay blocked as intended.
