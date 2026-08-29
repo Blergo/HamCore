@@ -524,6 +524,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     if (isValidName(&config[5])) {
       StrHelper::strncpy(_prefs->node_name, &config[5], sizeof(_prefs->node_name));
       savePrefs();
+      // Announce under the new name right away, rather than waiting for the next
+      // periodic advert interval (which may be a long time, and would otherwise
+      // still be showing the old name until then).
+      _callbacks->sendSelfAdvertisement(1500, true);
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error, bad chars");

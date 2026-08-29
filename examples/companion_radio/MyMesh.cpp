@@ -1233,6 +1233,10 @@ void MyMesh::handleCmdFrame(size_t len) {
     memcpy(_prefs.node_name, &cmd_frame[1], nlen);
     _prefs.node_name[nlen] = 0;
     savePrefs();
+    // Announce under the new name right away, rather than waiting for the next
+    // periodic advert interval (which may be a long time, and would otherwise
+    // still be showing the old name until then).
+    advert();
     writeOKFrame();
   } else if (cmd_frame[0] == CMD_SET_ADVERT_LATLON && len >= 9) {
     int32_t lat, lon, alt = 0;
