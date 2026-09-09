@@ -763,7 +763,6 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
-  _prefs.advert_interval = 1;
   _prefs.flood_advert_interval = 47;
   _prefs.flood_max = 64;
   _prefs.flood_max_unscoped = 64;
@@ -898,11 +897,9 @@ void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
 }
 
 void MyMesh::updateAdvertTimer() {
-  if (_prefs.advert_interval > 0) {
-    next_local_advert = futureMillis(((uint32_t)_prefs.advert_interval) * 2 * 60 * 1000);
-  } else {
-    next_local_advert = 0;
-  }
+  // Zero-hop advert interval is fixed for regulatory compliance -- no longer
+  // sourced from _prefs.advert_interval / configurable via CLI or app.
+  next_local_advert = futureMillis((uint32_t)ZEROHOP_ADVERT_INTERVAL_MINS * 60 * 1000);
 }
 
 void MyMesh::updateFloodAdvertTimer() {

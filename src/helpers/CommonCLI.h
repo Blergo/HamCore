@@ -13,6 +13,11 @@
 
 #define ADVERT_LOC_NONE       0
 #define ADVERT_LOC_SHARE      1
+
+// Repeater zero-hop advert interval is fixed for regulatory compliance and is not
+// configurable via CLI or app -- deliberately not guarded by #ifndef, unlike other
+// tunables, so no board variant can override it either.
+#define ZEROHOP_ADVERT_INTERVAL_MINS   10
 #define ADVERT_LOC_PREFS      2
 
 #define LOOP_DETECT_OFF       0
