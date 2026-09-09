@@ -66,3 +66,5 @@ v0.01a through v0.05a were alpha releases. From this release onward, versioning 
 
 ### v0.1.1
 1. **New Feature - Fixed Zero-Hop Advert Interval:** Repeater zero-hop advert interval is now hardcoded to 10 minutes for regulatory compliance, and is no longer configurable via CLI or app. The `advert.interval` CLI command still accepts writes (so existing app settings screens don't error) but silently ignores the value.
+2. **Target Cleanup:** Removed the Ikoka Stick nRF52 board variant - no longer used or supported.
+3. **Bug Fix - WY_RPT Radio Driver Mismatch:** WY_RPT now ships an EBYTE E22P-433M30S module (SX1268-based) instead of the E22-900M30S (SX1262-based) it was originally built for. The radio driver class was still SX1262, causing radio init to fail and the board to hang on boot with the new module fitted. WY_RPT now builds against the correct SX1268 driver.
