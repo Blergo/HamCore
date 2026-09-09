@@ -157,12 +157,7 @@ bool CommonCLI::savePrefs(FILESYSTEM* fs) {
   return false;
 }
 
-#define MIN_LOCAL_ADVERT_INTERVAL   60
-
 void CommonCLI::savePrefs() {
-  if (_prefs->advert_interval * 2 < MIN_LOCAL_ADVERT_INTERVAL) {
-    _prefs->advert_interval = 0;  // turn it off, now that device has been manually configured
-  }
   _callbacks->savePrefs();
 }
 
@@ -494,15 +489,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "OK");
     }
   } else if (memcmp(config, "advert.interval ", 16) == 0) {
-    int mins = _atoi(&config[16]);
-    if ((mins > 0 && mins < MIN_LOCAL_ADVERT_INTERVAL) || (mins > 240)) {
-      sprintf(reply, "Error: interval range is %d-240 minutes", MIN_LOCAL_ADVERT_INTERVAL);
-    } else {
-      _prefs->advert_interval = (uint8_t)(mins / 2);
-      _callbacks->updateAdvertTimer();
-      savePrefs();
-      strcpy(reply, "OK");
-    }
+    // Zero-hop advert interval is fixed (regulatory compliance) and no longer
+    // configurable -- silently accept so app settings write-back doesn't error,
+    // but don't actually change anything.
+    strcpy(reply, "OK - advert.interval is fixed and cannot be changed");
   } else if (memcmp(config, "guest.password ", 15) == 0) {
     StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
     savePrefs();
@@ -825,7 +815,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "flood.advert.interval", 21) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
   } else if (memcmp(config, "advert.interval", 15) == 0) {
-    sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
+    sprintf(reply, "> %d (fixed)", ZEROHOP_ADVERT_INTERVAL_MINS);
   } else if (memcmp(config, "guest.password", 14) == 0) {
     sprintf(reply, "> %s", _prefs->guest_password);
   } else if (sender_timestamp == 0 && memcmp(config, "prv.key", 7) == 0) {  // from serial command line only
