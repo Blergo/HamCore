@@ -185,7 +185,11 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
 
     if ((sender->permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_GUEST) {
-      perm_mask = 0x00;  // just base telemetry allowed
+      // Guests get base + environment telemetry (eg. temperature/humidity) --
+      // matches REQ_TYPE_GET_STATUS already being fully open to guests. Location
+      // stays admin-only: GPS coordinates are genuinely sensitive (theft/vandalism
+      // risk for an unattended repeater), unlike a temperature/humidity reading.
+      perm_mask = TELEM_PERM_BASE | TELEM_PERM_ENVIRONMENT;
     }
     sensors.querySensors(perm_mask, telemetry);
 
