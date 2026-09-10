@@ -72,3 +72,4 @@ v0.01a through v0.05a were alpha releases. From this release onward, versioning 
 
 ### v0.1.2
 1. **New Feature - Guest Environment Telemetry:** Repeater environment sensor telemetry (eg. AHT20 temperature/humidity) is now included in guest telemetry requests, matching status requests already being open to guests. Location telemetry (GPS) stays admin-only, since coordinates are genuinely sensitive for an unattended repeater.
+2. **Target Cleanup:** Removed the WY_RPT 33dBm build variants - there is no E22P-433M33S module on the market to pair with them.
